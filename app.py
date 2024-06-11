@@ -68,6 +68,7 @@ try:
             if new_id == id:
                 if counter >= egg_lay_time:
                     write_id_to_file(id)
+                    print(f"Slepice {id} prave snesla vejce.")
                     counter = 0
                 else:
                     counter += 1
