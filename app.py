@@ -3,8 +3,6 @@ import json
 import os
 import logging
 
-
-
 json_file = 'eggs.json'
 egg_lay_time = 50
 
@@ -20,7 +18,7 @@ ser = serial.Serial(
 
 
 # Saving laid egg to a file
-def write_id_to_file(id_to_save):
+def write_id_to_file(id_to_save: int) -> None:
     data_list = []
 
     # Checks if file exists
@@ -49,7 +47,7 @@ def write_id_to_file(id_to_save):
 
 
 # Converting raw input to id
-def convert_data_to_id(data_to_convert):
+def convert_data_to_id(data_to_convert: bytes) -> int:
     converted_data = data_to_convert.decode('ascii')
     raw_id = converted_data[3:11]
     converted_id = int(raw_id, 16)
@@ -62,10 +60,10 @@ if __name__ == "__main__":
                         format='%(asctime)s - %(levelname)s - %(message)s',
                         handlers=[logging.StreamHandler(), logging.FileHandler('egg_lay_log.log')])
 
-    last_id = None
-    current_id = None
+    last_id = 0
+    current_id = 0
     counter = 0
-    colliding_id = None
+    colliding_id = 0
     colliding_counter = 0
 
     try:
