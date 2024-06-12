@@ -5,7 +5,7 @@ import os
 json_file = 'eggs.json'
 egg_lay_time = 50
 
-# Parametry pro serial
+# Params for port
 ser = serial.Serial(
     port='/dev/ttyUSB0',
     baudrate=9600,
@@ -16,11 +16,11 @@ ser = serial.Serial(
 )
 
 
-# Ulozeni sneseneho vejce do souboru
-def write_id_to_file(new_id):
+# Saving laid egg to a file
+def write_id_to_file(id_to_save):
     data_list = []
 
-    # Kontrola, zda soubor existuje
+    # Checks if file exists
     if os.path.exists(json_file):
         with open(json_file, 'r') as file:
             try:
@@ -28,29 +28,28 @@ def write_id_to_file(new_id):
             except json.JSONDecodeError:
                 data_list = []
 
-    # Kontrola, zda je id v souboru
+    # Check if id is already in file
     id_exists = False
     for item in data_list:
-        if item['id'] == new_id:
+        if item['id'] == id_to_save:
             item['eggs'] += 1
             id_exists = True
             break
 
-    # Pokud id v souboru neni, je pridano
+    # If id isn't already in file add
     if not id_exists:
-        data_list.append({'id': new_id, 'eggs': 1})
+        data_list.append({'id': id_to_save, 'eggs': 1})
 
-    # Zapis do souboru
+    # Writing to a file
     with open(json_file, 'w') as file:
         json.dump(data_list, file, indent=4)
 
 
-# Prevod dat z ctecky na id
-def convert_data_to_id(data):
-    print(f"Raw data:{data}")
-    data = str(data)
-    data = data[8:-11]
-    converted_id = int(data, 16)
+# Converting raw input to id
+def convert_data_to_id(data_to_convert):
+    converted_data = data_to_convert.decode('ascii')
+    raw_id = converted_data[3:11]
+    converted_id = int(raw_id, 16)
     return converted_id
 
 
@@ -67,20 +66,24 @@ if __name__ == "__main__":
                 data = ser.read(16)
                 new_id = convert_data_to_id(data)
 
+                # Counting same chicken ids for specific duration
                 if new_id == current_id:
                     if counter >= egg_lay_time:
                         write_id_to_file(current_id)
-                        print(f"Slepice {current_id} prave snesla vejce.")
+                        print(f"Chicken {current_id} just laid an egg.")
                         counter = 0
                     else:
                         counter += 1
+
+                # Counting another chicken, if there's 2 nearby
                 elif new_id == colliding_id:
                     if colliding_counter >= egg_lay_time:
                         write_id_to_file(colliding_id)
-                        print(f"Slepice {colliding_id} prave snesla vejce.")
+                        print(f"Chicken {current_id} just laid an egg.")
                         colliding_counter = 0
                     else:
                         colliding_counter += 1
+
                 else:
                     # New ID encountered, swap current and colliding states
                     colliding_id = current_id
@@ -93,7 +96,7 @@ if __name__ == "__main__":
                     print(f"Colliding ID: {colliding_id}, Counter: {colliding_counter}")
 
     except KeyboardInterrupt:
-        print("Port uzavren")
+        print("Port closed")
 
     finally:
         ser.close()
