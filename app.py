@@ -1,4 +1,4 @@
-import serial
+import serial  # type: ignore
 import json
 import os
 import logging
