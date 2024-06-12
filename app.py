@@ -1,6 +1,9 @@
 import serial
 import json
 import os
+import logging
+
+
 
 json_file = 'eggs.json'
 egg_lay_time = 50
@@ -54,6 +57,11 @@ def convert_data_to_id(data_to_convert):
 
 
 if __name__ == "__main__":
+    # Logging config
+    logging.basicConfig(level=logging.DEBUG,
+                        format='%(asctime)s - %(levelname)s - %(message)s',
+                        handlers=[logging.StreamHandler(), logging.FileHandler('egg_lay_log.log')])
+
     last_id = None
     current_id = None
     counter = 0
@@ -70,7 +78,7 @@ if __name__ == "__main__":
                 if new_id == current_id:
                     if counter >= egg_lay_time:
                         write_id_to_file(current_id)
-                        print(f"Chicken {current_id} just laid an egg.")
+                        logging.info(f"Chicken {current_id} just laid an egg.")
                         counter = 0
                     else:
                         counter += 1
@@ -79,7 +87,7 @@ if __name__ == "__main__":
                 elif new_id == colliding_id:
                     if colliding_counter >= egg_lay_time:
                         write_id_to_file(colliding_id)
-                        print(f"Chicken {current_id} just laid an egg.")
+                        logging.info(f"Chicken {colliding_id} just laid an egg.")
                         colliding_counter = 0
                     else:
                         colliding_counter += 1
@@ -91,12 +99,12 @@ if __name__ == "__main__":
                     current_id = new_id
                     counter = 1
 
-                print(f"Current ID: {current_id}, Counter: {counter}")
+                logging.debug(f"ID: {current_id}, Counter: {counter}")
                 if colliding_id:
-                    print(f"Colliding ID: {colliding_id}, Counter: {colliding_counter}")
+                    logging.debug(f"ID2: {colliding_id}, Counter: {colliding_counter}")
 
     except KeyboardInterrupt:
-        print("Port closed")
+        logging.info("Port closed")
 
     finally:
         ser.close()
