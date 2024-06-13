@@ -90,10 +90,6 @@ def event_processor():
 
     while True:
         try:
-            # Connection to db
-            connect = sqlite3.connect("henhouse.db")
-            cursor = connect.cursor()
-
             # Loading data from queue
             reader_data = ID_QUEUE.get(timeout=1)
             new_id = convert_data_to_id(reader_data)
@@ -105,7 +101,6 @@ def event_processor():
                     logging.info(f"Chicken {current_id} just laid an egg.")
                     counter = 0
                     write_event_to_db(current_id, "Kurnik01", "egg")
-                    connect.commit()
 
                 else:
                     counter += 1
