@@ -1,14 +1,16 @@
 import json
 import logging
 import os
+import queue
+import threading
 
 import serial  # type: ignore
 
 json_file = "eggs.json"
-egg_lay_time = 50
+LAY_TIME = 50  # Time to decide whether egg was laid
 
 # Params for port
-ser = serial.Serial(
+SER = serial.Serial(
     port="/dev/ttyUSB0",
     baudrate=9600,
     bytesize=serial.EIGHTBITS,
@@ -16,6 +18,8 @@ ser = serial.Serial(
     stopbits=serial.STOPBITS_ONE,
     timeout=5,
 )
+
+ID_QUEUE: queue.Queue = queue.Queue()
 
 
 # Saving laid egg to a file
@@ -55,57 +59,80 @@ def convert_data_to_id(data_to_convert: bytes) -> int:
     return converted_id
 
 
-if __name__ == "__main__":
-    # Logging config
-    logging.basicConfig(
-        level=logging.DEBUG,
-        format="%(asctime)s - %(levelname)s - %(message)s",
-        handlers=[logging.StreamHandler(), logging.FileHandler("egg_lay_log.log")],
-    )
+# Thread for reading data
+def data_reader():
+    while True:
+        if SER.in_waiting > 0:
+            data = SER.read(16)
+            ID_QUEUE.put(data)
 
-    last_id = 0
+
+# Thread for processing events
+def event_processor():
     current_id = 0
     counter = 0
     colliding_id = 0
     colliding_counter = 0
 
-    try:
-        while True:
-            if ser.in_waiting > 0:
-                data = ser.read(16)
-                new_id = convert_data_to_id(data)
-
-                # Counting same chicken ids for specific duration
-                if new_id == current_id:
-                    if counter >= egg_lay_time:
-                        write_id_to_file(current_id)
-                        logging.info(f"Chicken {current_id} just laid an egg.")
-                        counter = 0
-                    else:
-                        counter += 1
-
-                # Counting another chicken, if there's 2 nearby
-                elif new_id == colliding_id:
-                    if colliding_counter >= egg_lay_time:
-                        write_id_to_file(colliding_id)
-                        logging.info(f"Chicken {colliding_id} just laid an egg.")
-                        colliding_counter = 0
-                    else:
-                        colliding_counter += 1
-
+    while True:
+        try:
+            # Loading data from queue
+            reader_data = ID_QUEUE.get(timeout=1)
+            new_id = convert_data_to_id(reader_data)
+            # Counting same chicken ids for defined duration
+            if new_id == current_id:
+                if counter >= LAY_TIME:
+                    write_id_to_file(current_id)
+                    logging.info(f"Chicken {current_id} just laid an egg.")
+                    counter = 0
                 else:
-                    # New ID encountered, swap current and colliding states
-                    colliding_id = current_id
-                    colliding_counter = counter
-                    current_id = new_id
-                    counter = 1
+                    counter += 1
 
-                logging.debug(f"ID: {current_id}, Counter: {counter}")
-                if colliding_id:
-                    logging.debug(f"ID2: {colliding_id}, Counter: {colliding_counter}")
+            # Counting another chicken, if there's 2 nearby reader
+            elif new_id == colliding_id:
+                if colliding_counter >= LAY_TIME:
+                    write_id_to_file(colliding_id)
+                    logging.info(f"Chicken {colliding_id} just laid an egg.")
+                    colliding_counter = 0
+                else:
+                    colliding_counter += 1
+
+            else:
+                # New ID encountered, swap current and colliding states
+                colliding_id = current_id
+                colliding_counter = counter
+                current_id = new_id
+                counter = 1
+
+            logging.debug(f"ID: {current_id}, Counter: {counter}")
+            if colliding_id:
+                logging.debug(f"ID2: {colliding_id}, Counter: {colliding_counter}")
+
+        except queue.Empty:
+            continue
+
+
+if __name__ == "__main__":
+    # Logging config
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        handlers=[logging.StreamHandler()],  # , logging.FileHandler("egg_lay_log.log")
+    )
+
+    try:
+        # Splitting code to 2 threads for reading and processing data
+        reader_thread = threading.Thread(target=data_reader, daemon=True)
+        event_processor_thread = threading.Thread(target=event_processor, daemon=True)
+
+        reader_thread.start()
+        event_processor_thread.start()
+
+        reader_thread.join()
+        event_processor_thread.join()
 
     except KeyboardInterrupt:
         logging.info("Port closed")
 
     finally:
-        ser.close()
+        SER.close()
