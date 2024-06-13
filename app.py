@@ -26,6 +26,7 @@ class EggLayProcessor:
         self.counter = 0
         self.colliding_id = 0
         self.colliding_counter = 0
+        self.last_id = 0
 
     def process_new_id(self, new_id: int) -> None:
         """Process the new ID and update counters and states."""
@@ -48,12 +49,24 @@ class EggLayProcessor:
             self.counter += 1
             logging.info(f"Chicken {self.current_id} entered.")
 
-        else:
-            self.colliding_id, self.colliding_counter = self.current_id, self.counter
-            self.current_id, self.counter = new_id, 1
+        elif self.current_id != 0 and self.colliding_id == 0:
+            self.colliding_id = new_id
+            self.colliding_counter += 1
+            logging.info(f"Chicken {self.colliding_id} entered.")
 
-        logging.debug(f"ID: {self.current_id}, Counter: {self.counter}")
-        if self.colliding_id:
+        else:
+            if self.last_id == self.current_id:
+                self.colliding_id, self.colliding_counter = new_id, 1
+                logging.info(f"Chicken {self.colliding_id} left.")
+            else:
+                self.current_id, self.counter = new_id, 1
+                logging.info(f"Chicken {self.current_id} left.")
+
+        self.last_id = new_id
+
+        if self.current_id == new_id:
+            logging.debug(f"ID: {self.current_id}, Counter: {self.counter}")
+        elif self.colliding_id == new_id:
             logging.debug(f"ID2: {self.colliding_id}, Counter: {self.colliding_counter}")
 
 
