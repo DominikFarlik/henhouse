@@ -1,18 +1,15 @@
-import json
 import logging
-import os
 import queue
 import sqlite3
 import threading
-
 import serial  # type: ignore
 
-json_file = "eggs.json"
+# Constants
 LAY_TIME = 5  # Time to determine whether egg was laid
 
-# Params for port
+# Serial port configuration
 SER = serial.Serial(
-    port="/dev/ttyUSB0",
+    port="COM3",
     baudrate=9600,
     bytesize=serial.EIGHTBITS,
     parity=serial.PARITY_NONE,
@@ -20,127 +17,107 @@ SER = serial.Serial(
     timeout=5,
 )
 
-ID_QUEUE: queue.Queue = queue.Queue()
+ID_QUEUE: queue.Queue[bytes] = queue.Queue()
 
 
-def write_event_to_db(chip_id, reader_id, event_type):
-    connection = sqlite3.connect("henhouse.db")
-    cursor = connection.cursor()
+class EggLayProcessor:
+    def __init__(self):
+        self.current_id = 0
+        self.counter = 0
+        self.colliding_id = 0
+        self.colliding_counter = 0
 
-    cursor.execute(
-        "INSERT INTO events (chip_id, reader_id, event_type) VALUES (?, ?, ?)",
-        (chip_id, reader_id, event_type),
-    )
+    def process_new_id(self, new_id: int) -> None:
+        """Process the new ID and update counters and states."""
+        if new_id == self.current_id:
+            self.counter += 1
+            if self.counter >= LAY_TIME:
+                logging.info(f"Chicken {self.current_id} laid an egg.")
+                write_event_to_db(self.current_id, "Kurnik01", "egg")
+                self.counter = 0
 
-    connection.commit()
-    connection.close()
+        elif new_id == self.colliding_id:
+            self.colliding_counter += 1
+            if self.colliding_counter >= LAY_TIME:
+                logging.info(f"Chicken {self.colliding_id} laid an egg.")
+                write_event_to_db(self.colliding_id, "Kurnik01", "egg")
+                self.colliding_counter = 0
 
+        elif self.current_id == 0:
+            self.current_id = new_id
+            self.counter += 1
+            logging.info(f"Chicken {self.current_id} entered.")
 
-# Saving laid egg to a file
-def write_id_to_file(id_to_save: int) -> None:
-    data_list = []
+        else:
+            self.colliding_id, self.colliding_counter = self.current_id, self.counter
+            self.current_id, self.counter = new_id, 1
 
-    # Checks if file exists
-    if os.path.exists(json_file):
-        with open(json_file, "r") as file:
-            try:
-                data_list = json.load(file)
-            except json.JSONDecodeError:
-                data_list = []
-
-    # Check if id is already in file
-    id_exists = False
-    for item in data_list:
-        if item["id"] == id_to_save:
-            item["eggs"] += 1
-            id_exists = True
-            break
-
-    # If id isn't already in file add
-    if not id_exists:
-        data_list.append({"id": id_to_save, "eggs": 1})
-
-    # Writing to a file
-    with open(json_file, "w") as file:
-        json.dump(data_list, file, indent=4)
+        logging.debug(f"ID: {self.current_id}, Counter: {self.counter}")
+        if self.colliding_id:
+            logging.debug(f"ID2: {self.colliding_id}, Counter: {self.colliding_counter}")
 
 
-# Converting raw input to id
+def write_event_to_db(chip_id: int, reader_id: str, event_type: str) -> None:
+    """Writes received data to the database."""
+    try:
+        with sqlite3.connect("henhouse.db") as connection:
+            cursor = connection.cursor()
+            cursor.execute(
+                "INSERT INTO events (chip_id, reader_id, event_type) VALUES (?, ?, ?)",
+                (chip_id, reader_id, event_type),
+            )
+            connection.commit()
+    except sqlite3.Error as e:
+        logging.error(f"Database error: {e}")
+    except Exception as e:
+        logging.error(f"Unexpected error: {e}")
+
+
 def convert_data_to_id(data_to_convert: bytes) -> int:
-    converted_data = data_to_convert.decode("ascii")
-    raw_id = converted_data[3:11]
-    converted_id = int(raw_id, 16)
-    return converted_id
+    """Converts raw input data to an ID."""
+    try:
+        converted_data = data_to_convert.decode("ascii")
+        raw_id = converted_data[3:11]
+        converted_id = int(raw_id, 16)
+        return converted_id
+    except (ValueError, IndexError) as e:
+        logging.error(f"Error converting data to ID: {e}")
+        return -1
 
 
-# Thread for reading data
-def data_reader():
+def data_reader() -> None:
+    """Thread for reading data from the serial port."""
     while True:
         if SER.in_waiting > 0:
             data = SER.read(16)
             ID_QUEUE.put(data)
 
 
-# Thread for processing events
-def event_processor():
-    current_id = 0
-    counter = 0
-    colliding_id = 0
-    colliding_counter = 0
+def event_processor() -> None:
+    """Thread for processing events."""
+    processor = EggLayProcessor()
 
     while True:
         try:
-            # Loading data from queue
             reader_data = ID_QUEUE.get(timeout=1)
             new_id = convert_data_to_id(reader_data)
 
-            # Counting same chicken ids for defined duration
-            if new_id == current_id:
-                if counter >= LAY_TIME:
-                    write_id_to_file(current_id)
-                    logging.info(f"Chicken {current_id} just laid an egg.")
-                    counter = 0
-                    write_event_to_db(current_id, "Kurnik01", "egg")
-
-                else:
-                    counter += 1
-
-            # Counting another chicken, if there's 2 nearby reader
-            elif new_id == colliding_id:
-                if colliding_counter >= LAY_TIME:
-                    write_id_to_file(colliding_id)
-                    logging.info(f"Chicken {colliding_id} just laid an egg.")
-                    colliding_counter = 0
-                else:
-                    colliding_counter += 1
-
-            else:
-                # New ID encountered, swap current and colliding states
-                colliding_id = current_id
-                colliding_counter = counter
-                current_id = new_id
-                counter = 1
-
-            logging.debug(f"ID: {current_id}, Counter: {counter}")
-            if colliding_id:
-                logging.debug(f"ID2: {colliding_id}, Counter: {colliding_counter}")
+            processor.process_new_id(new_id)
 
         except queue.Empty:
             continue
+        except Exception as e:
+            logging.error(f"Unexpected error in event processor: {e}")
 
 
 if __name__ == "__main__":
-    # Logging config
     logging.basicConfig(
         level=logging.DEBUG,
         format="%(asctime)s - %(levelname)s - %(message)s",
         handlers=[logging.StreamHandler()],  # , logging.FileHandler("egg_lay_log.log")
     )
 
-    # cursor.execute("INSERT INTO events (chip_id, reader_id, event_type) VALUES (?, ?, ?)", (255, "Kurnik01", "egg"))
-
     try:
-        # Splitting code to 2 threads for reading and processing data
         reader_thread = threading.Thread(target=data_reader, daemon=True)
         event_processor_thread = threading.Thread(target=event_processor, daemon=True)
 
@@ -151,7 +128,9 @@ if __name__ == "__main__":
         event_processor_thread.join()
 
     except KeyboardInterrupt:
-        logging.info("Port closed")
+        logging.info("Shutting down...")
 
     finally:
-        SER.close()
+        if SER.is_open:
+            SER.close()
+        logging.info("Serial port closed")
