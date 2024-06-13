@@ -2,12 +2,13 @@ import json
 import logging
 import os
 import queue
+import sqlite3
 import threading
 
 import serial  # type: ignore
 
 json_file = "eggs.json"
-LAY_TIME = 50  # Time to decide whether egg was laid
+LAY_TIME = 5  # Time to determine whether egg was laid
 
 # Params for port
 SER = serial.Serial(
@@ -20,6 +21,19 @@ SER = serial.Serial(
 )
 
 ID_QUEUE: queue.Queue = queue.Queue()
+
+
+def write_event_to_db(chip_id, reader_id, event_type):
+    connection = sqlite3.connect("henhouse.db")
+    cursor = connection.cursor()
+
+    cursor.execute(
+        "INSERT INTO events (chip_id, reader_id, event_type) VALUES (?, ?, ?)",
+        (chip_id, reader_id, event_type),
+    )
+
+    connection.commit()
+    connection.close()
 
 
 # Saving laid egg to a file
@@ -76,15 +90,23 @@ def event_processor():
 
     while True:
         try:
+            # Connection to db
+            connect = sqlite3.connect("henhouse.db")
+            cursor = connect.cursor()
+
             # Loading data from queue
             reader_data = ID_QUEUE.get(timeout=1)
             new_id = convert_data_to_id(reader_data)
+
             # Counting same chicken ids for defined duration
             if new_id == current_id:
                 if counter >= LAY_TIME:
                     write_id_to_file(current_id)
                     logging.info(f"Chicken {current_id} just laid an egg.")
                     counter = 0
+                    write_event_to_db(current_id, "Kurnik01", "egg")
+                    connect.commit()
+
                 else:
                     counter += 1
 
@@ -119,6 +141,8 @@ if __name__ == "__main__":
         format="%(asctime)s - %(levelname)s - %(message)s",
         handlers=[logging.StreamHandler()],  # , logging.FileHandler("egg_lay_log.log")
     )
+
+    # cursor.execute("INSERT INTO events (chip_id, reader_id, event_type) VALUES (?, ?, ?)", (255, "Kurnik01", "egg"))
 
     try:
         # Splitting code to 2 threads for reading and processing data
