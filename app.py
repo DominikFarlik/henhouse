@@ -1,3 +1,4 @@
+from datetime import datetime
 import logging
 import queue
 import sqlite3
@@ -6,69 +7,90 @@ import serial
 import serial.tools.list_ports
 
 # Constants
-LAY_TIME = 5  # Time to determine whether egg was laid
+LAY_COUNTER = 5  # Number of chip reads
+LAY_TIME = 10  # Duration to determine whether egg was laid
 
 # Global variables
 ID_QUEUE: queue.Queue[tuple[bytes, str]] = queue.Queue()
 
+
 class EggLayProcessor:
     def __init__(self):
-        self.current_id = 0
-        self.counter = 0
-        self.colliding_id = 0
-        self.colliding_counter = 0
-        self.last_id = 0
+        self.chickens = []
+        #self.current_id = 0
+        #self.counter = 0
+        #self.colliding_id = 0
+        #self.colliding_counter = 0
+        #self.last_id = 0
 
     def process_new_id(self, new_id: int, reader_id: str) -> None:
         """Process the new ID and update counters and states."""
-        if new_id == self.current_id:
-            self.counter += 1
-            if self.counter >= LAY_TIME:
-                logging.info(f"Chicken {self.current_id} laid an egg on {reader_id}.")
-                write_event_to_db(self.current_id, reader_id, "egg")
-                self.counter = 0
+        found_chicken = False
+        for chicken in self.chickens:
+            if chicken["chip_id"] == new_id:
+                chicken["counter"] += 1
+                found_chicken = True
+                elapsed_time = datetime.now() - chicken["enter_time"]
+                if chicken["counter"] >= LAY_COUNTER and elapsed_time.total_seconds() >= LAY_TIME:
+                    write_event_to_db(chicken["chip_id"], chicken["reader_id"],
+                                      datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "egg")
+                    chicken["counter"] = 0
+                    logging.info(f"Chicken {chicken["chip_id"]} laid an egg on {reader_id}.")
 
-        elif new_id == self.colliding_id:
-            self.colliding_counter += 1
-            if self.colliding_counter >= LAY_TIME:
-                logging.info(f"Chicken {self.colliding_id} laid an egg on {reader_id}.")
-                write_event_to_db(self.colliding_id, reader_id, "egg")
-                self.colliding_counter = 0
+        if not found_chicken:
+            new_chicken = {"chip_id": new_id, "enter_time": datetime.now(),
+                           "reader_id": reader_id, "counter": 1}
+            self.chickens.append(new_chicken)
+            logging.info(f"{new_chicken["enter_time"]} - Chicken {new_id} entered on {reader_id}.")
 
-        elif self.current_id == 0:
-            self.current_id = new_id
-            self.counter += 1
-            logging.info(f"Chicken {self.current_id} entered on {reader_id}.")
+        #if new_id == self.current_id:
+        #    self.counter += 1
+        #    if self.counter >= LAY_TIME:
+        #        logging.info(f"Chicken {self.current_id} laid an egg on {reader_id}.")
+        #        write_event_to_db(self.current_id, reader_id, "egg")
+        #        self.counter = 0
+#
+        #elif new_id == self.colliding_id:
+        #    self.colliding_counter += 1
+        #    if self.colliding_counter >= LAY_TIME:
+        #        logging.info(f"Chicken {self.colliding_id} laid an egg on {reader_id}.")
+        #        write_event_to_db(self.colliding_id, reader_id, "egg")
+        #        self.colliding_counter = 0
+#
+        #elif self.current_id == 0:
+        #    self.current_id = new_id
+        #    self.counter += 1
+        #    logging.info(f"Chicken {self.current_id} entered on {reader_id}.")
+#
+        #elif self.current_id != 0 and self.colliding_id == 0:
+        #    self.colliding_id = new_id
+        #    self.colliding_counter += 1
+        #    logging.info(f"Chicken {self.colliding_id} entered on {reader_id}.")
+#
+        #else:
+        #    if self.last_id == self.current_id:
+        #        self.colliding_id, self.colliding_counter = new_id, 1
+        #        logging.info(f"Chicken {self.colliding_id} left on {reader_id}.")
+        #    else:
+        #        self.current_id, self.counter = new_id, 1
+        #        logging.info(f"Chicken {self.current_id} left on {reader_id}.")
+#
+        #self.last_id = new_id
+#
+        #if self.current_id == new_id:
+        #    logging.debug(f"ID: {self.current_id}, Counter: {self.counter}")
+        #elif self.colliding_id == new_id:
+        #    logging.debug(f"ID2: {self.colliding_id}, Counter: {self.colliding_counter}")
 
-        elif self.current_id != 0 and self.colliding_id == 0:
-            self.colliding_id = new_id
-            self.colliding_counter += 1
-            logging.info(f"Chicken {self.colliding_id} entered on {reader_id}.")
 
-        else:
-            if self.last_id == self.current_id:
-                self.colliding_id, self.colliding_counter = new_id, 1
-                logging.info(f"Chicken {self.colliding_id} left on {reader_id}.")
-            else:
-                self.current_id, self.counter = new_id, 1
-                logging.info(f"Chicken {self.current_id} left on {reader_id}.")
-
-        self.last_id = new_id
-
-        if self.current_id == new_id:
-            logging.debug(f"ID: {self.current_id}, Counter: {self.counter}")
-        elif self.colliding_id == new_id:
-            logging.debug(f"ID2: {self.colliding_id}, Counter: {self.colliding_counter}")
-
-
-def write_event_to_db(chip_id: int, reader_id: str, event_type: str) -> None:
-    """Writes received data to the database."""
+def write_event_to_db(chip_id: int, reader_id: str, event_time: str, event_type: str) -> None:
+    """Writes received data to the database with the current timestamp."""
     try:
         with sqlite3.connect("henhouse.db") as connection:
             cursor = connection.cursor()
             cursor.execute(
-                "INSERT INTO events (chip_id, reader_id, event_type) VALUES (?, ?, ?)",
-                (chip_id, reader_id, event_type),
+                "INSERT INTO events (chip_id, reader_id, event_type, event_time) VALUES (?, ?, ?, ?)",
+                (chip_id, reader_id, event_type, event_time),
             )
             connection.commit()
     except sqlite3.Error as e:
@@ -119,6 +141,7 @@ class SerialPortReader:
 
 def event_processor() -> None:
     """Thread for processing events."""
+    # Instance for processor class
     processor = EggLayProcessor()
 
     while True:
@@ -141,6 +164,7 @@ def find_serial_ports() -> list:
 
 
 if __name__ == "__main__":
+    # Logging configuration
     logging.basicConfig(
         level=logging.DEBUG,
         format="%(asctime)s - %(levelname)s - %(message)s",
