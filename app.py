@@ -9,6 +9,7 @@ import serial.tools.list_ports
 # Constants
 LAY_COUNTER = 5  # Number of chip reads
 LAY_TIME = 10  # Duration to determine whether egg was laid
+EXIT_TIME = 30  # Duration to determine whether chicken left
 
 # Global variables
 ID_QUEUE: queue.Queue[tuple[bytes, str]] = queue.Queue()
@@ -17,70 +18,32 @@ ID_QUEUE: queue.Queue[tuple[bytes, str]] = queue.Queue()
 class EggLayProcessor:
     def __init__(self):
         self.chickens = []
-        #self.current_id = 0
-        #self.counter = 0
-        #self.colliding_id = 0
-        #self.colliding_counter = 0
-        #self.last_id = 0
 
     def process_new_id(self, new_id: int, reader_id: str) -> None:
         """Process the new ID and update counters and states."""
-        found_chicken = False
-        for chicken in self.chickens:
-            if chicken["chip_id"] == new_id:
-                chicken["counter"] += 1
-                found_chicken = True
-                elapsed_time = datetime.now() - chicken["enter_time"]
-                if chicken["counter"] >= LAY_COUNTER and elapsed_time.total_seconds() >= LAY_TIME:
-                    write_event_to_db(chicken["chip_id"], chicken["reader_id"],
-                                      datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "egg")
-                    chicken["counter"] = 0
-                    logging.info(f"Chicken {chicken["chip_id"]} laid an egg on {reader_id}.")
+        found_chicken = self.check_for_egg(new_id, reader_id)
 
+        # Appends new chicken to be processed
         if not found_chicken:
             new_chicken = {"chip_id": new_id, "enter_time": datetime.now(),
                            "reader_id": reader_id, "counter": 1}
             self.chickens.append(new_chicken)
             logging.info(f"{new_chicken["enter_time"]} - Chicken {new_id} entered on {reader_id}.")
 
-        #if new_id == self.current_id:
-        #    self.counter += 1
-        #    if self.counter >= LAY_TIME:
-        #        logging.info(f"Chicken {self.current_id} laid an egg on {reader_id}.")
-        #        write_event_to_db(self.current_id, reader_id, "egg")
-        #        self.counter = 0
-#
-        #elif new_id == self.colliding_id:
-        #    self.colliding_counter += 1
-        #    if self.colliding_counter >= LAY_TIME:
-        #        logging.info(f"Chicken {self.colliding_id} laid an egg on {reader_id}.")
-        #        write_event_to_db(self.colliding_id, reader_id, "egg")
-        #        self.colliding_counter = 0
-#
-        #elif self.current_id == 0:
-        #    self.current_id = new_id
-        #    self.counter += 1
-        #    logging.info(f"Chicken {self.current_id} entered on {reader_id}.")
-#
-        #elif self.current_id != 0 and self.colliding_id == 0:
-        #    self.colliding_id = new_id
-        #    self.colliding_counter += 1
-        #    logging.info(f"Chicken {self.colliding_id} entered on {reader_id}.")
-#
-        #else:
-        #    if self.last_id == self.current_id:
-        #        self.colliding_id, self.colliding_counter = new_id, 1
-        #        logging.info(f"Chicken {self.colliding_id} left on {reader_id}.")
-        #    else:
-        #        self.current_id, self.counter = new_id, 1
-        #        logging.info(f"Chicken {self.current_id} left on {reader_id}.")
-#
-        #self.last_id = new_id
-#
-        #if self.current_id == new_id:
-        #    logging.debug(f"ID: {self.current_id}, Counter: {self.counter}")
-        #elif self.colliding_id == new_id:
-        #    logging.debug(f"ID2: {self.colliding_id}, Counter: {self.colliding_counter}")
+    # Checking if chicken is constantly standing long enough on reader
+    def check_for_egg(self, new_id, reader_id: str) -> bool:
+        for chicken in self.chickens:
+            if chicken["chip_id"] == new_id:
+                chicken["counter"] += 1
+                elapsed_time = datetime.now() - chicken["enter_time"]
+                if chicken["counter"] >= LAY_COUNTER and elapsed_time.total_seconds() >= LAY_TIME:
+                    write_event_to_db(chicken["chip_id"], chicken["reader_id"],
+                                      datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "egg")
+                    chicken["counter"] = 0
+                    logging.info(f"Chicken {chicken["chip_id"]} laid an egg on {reader_id}.")
+                    return True
+
+        return False
 
 
 def write_event_to_db(chip_id: int, reader_id: str, event_time: str, event_type: str) -> None:
