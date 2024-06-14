@@ -9,7 +9,7 @@ import serial.tools.list_ports
 # Constants
 LAY_COUNTER = 5  # Number of chip reads
 LAY_TIME = 10  # Duration to determine whether egg was laid
-EXIT_TIME = 30  # Duration to determine whether chicken left
+LEAVE_TIME = 10  # Duration to determine whether chicken left
 
 # Global variables
 ID_QUEUE: queue.Queue[tuple[bytes, str]] = queue.Queue()
@@ -19,14 +19,14 @@ class EggLayProcessor:
     def __init__(self):
         self.chickens = []
 
-    def process_new_id(self, new_id: int, reader_id: str) -> None:
+    # Takes id from reader and checks its state
+    def process_new_chip_id(self, new_id: int, reader_id: str) -> None:
         """Process the new ID and update counters and states."""
         found_chicken = self.check_for_egg(new_id, reader_id)
-
         # Appends new chicken to be processed
         if not found_chicken:
             new_chicken = {"chip_id": new_id, "enter_time": datetime.now(),
-                           "reader_id": reader_id, "counter": 1}
+                           "reader_id": reader_id, "counter": 1, "last_read": datetime.now()}
             self.chickens.append(new_chicken)
             logging.info(f"{new_chicken["enter_time"]} - Chicken {new_id} entered on {reader_id}.")
 
@@ -40,10 +40,18 @@ class EggLayProcessor:
                     write_event_to_db(chicken["chip_id"], chicken["reader_id"],
                                       datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "egg")
                     chicken["counter"] = 0
+                    chicken["last_read"] = datetime.now()
                     logging.info(f"Chicken {chicken["chip_id"]} laid an egg on {reader_id}.")
+                    return True
+                else:
                     return True
 
         return False
+
+    def check_if_left(self):
+        for chicken in self.chickens:
+            if (chicken["last_read"] >= datetime.now()).total_seconds() >= LEAVE_TIME:
+                logging.info(f"Chicken {chicken["chip_id"]} left {chicken["reader_id"]}.")
 
 
 def write_event_to_db(chip_id: int, reader_id: str, event_time: str, event_type: str) -> None:
@@ -112,7 +120,8 @@ def event_processor() -> None:
             reader_data, reader_id = ID_QUEUE.get(timeout=1)
             new_id = convert_data_to_id(reader_data)
 
-            processor.process_new_id(new_id, reader_id)
+            processor.process_new_chip_id(new_id, reader_id)
+            #processor.check_if_left()
 
         except queue.Empty:
             continue
