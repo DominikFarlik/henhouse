@@ -35,12 +35,12 @@ class EggLayProcessor:
         for chicken in self.chickens:
             if chicken["chip_id"] == new_id:
                 chicken["counter"] += 1
+                chicken["last_read"] = datetime.now()
                 elapsed_time = datetime.now() - chicken["enter_time"]
                 if chicken["counter"] >= LAY_COUNTER and elapsed_time.total_seconds() >= LAY_TIME:
                     write_event_to_db(chicken["chip_id"], chicken["reader_id"],
                                       datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "egg")
                     chicken["counter"] = 0
-                    chicken["last_read"] = datetime.now()
                     logging.info(f"Chicken {chicken["chip_id"]} laid an egg on {reader_id}.")
                     return True
                 else:
@@ -48,10 +48,15 @@ class EggLayProcessor:
 
         return False
 
-    def check_if_left(self):
+    def check_if_left(self) -> None:
+        print("here")
         for chicken in self.chickens:
-            if (chicken["last_read"] >= datetime.now()).total_seconds() >= LEAVE_TIME:
+            print((datetime.now() - chicken["last_read"]).total_seconds())
+            if (datetime.now() - chicken["last_read"]).total_seconds() >= LEAVE_TIME:
                 logging.info(f"Chicken {chicken["chip_id"]} left {chicken["reader_id"]}.")
+                write_event_to_db(chicken["chip_id"], chicken["reader_id"], 
+                                  chicken["last_read"].strftime("%Y-%m-%d %H:%M:%S"), "left")
+                self.chickens.pop(self.chickens.index(chicken))
 
 
 def write_event_to_db(chip_id: int, reader_id: str, event_time: str, event_type: str) -> None:
@@ -121,7 +126,7 @@ def event_processor() -> None:
             new_id = convert_data_to_id(reader_data)
 
             processor.process_new_chip_id(new_id, reader_id)
-            #processor.check_if_left()
+            processor.check_if_left()
 
         except queue.Empty:
             continue
