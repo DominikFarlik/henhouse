@@ -2,23 +2,14 @@ import logging
 import queue
 import sqlite3
 import threading
-import serial  # type: ignore
+import serial
+import serial.tools.list_ports
 
 # Constants
 LAY_TIME = 5  # Time to determine whether egg was laid
 
-# Serial port configuration
-SER = serial.Serial(
-    port="COM3",
-    baudrate=9600,
-    bytesize=serial.EIGHTBITS,
-    parity=serial.PARITY_NONE,
-    stopbits=serial.STOPBITS_ONE,
-    timeout=5,
-)
-
-ID_QUEUE: queue.Queue[bytes] = queue.Queue()
-
+# Global variables
+ID_QUEUE: queue.Queue[tuple[bytes, str]] = queue.Queue()
 
 class EggLayProcessor:
     def __init__(self):
@@ -28,39 +19,39 @@ class EggLayProcessor:
         self.colliding_counter = 0
         self.last_id = 0
 
-    def process_new_id(self, new_id: int) -> None:
+    def process_new_id(self, new_id: int, reader_id: str) -> None:
         """Process the new ID and update counters and states."""
         if new_id == self.current_id:
             self.counter += 1
             if self.counter >= LAY_TIME:
-                logging.info(f"Chicken {self.current_id} laid an egg.")
-                write_event_to_db(self.current_id, "Kurnik01", "egg")
+                logging.info(f"Chicken {self.current_id} laid an egg on {reader_id}.")
+                write_event_to_db(self.current_id, reader_id, "egg")
                 self.counter = 0
 
         elif new_id == self.colliding_id:
             self.colliding_counter += 1
             if self.colliding_counter >= LAY_TIME:
-                logging.info(f"Chicken {self.colliding_id} laid an egg.")
-                write_event_to_db(self.colliding_id, "Kurnik01", "egg")
+                logging.info(f"Chicken {self.colliding_id} laid an egg on {reader_id}.")
+                write_event_to_db(self.colliding_id, reader_id, "egg")
                 self.colliding_counter = 0
 
         elif self.current_id == 0:
             self.current_id = new_id
             self.counter += 1
-            logging.info(f"Chicken {self.current_id} entered.")
+            logging.info(f"Chicken {self.current_id} entered on {reader_id}.")
 
         elif self.current_id != 0 and self.colliding_id == 0:
             self.colliding_id = new_id
             self.colliding_counter += 1
-            logging.info(f"Chicken {self.colliding_id} entered.")
+            logging.info(f"Chicken {self.colliding_id} entered on {reader_id}.")
 
         else:
             if self.last_id == self.current_id:
                 self.colliding_id, self.colliding_counter = new_id, 1
-                logging.info(f"Chicken {self.colliding_id} left.")
+                logging.info(f"Chicken {self.colliding_id} left on {reader_id}.")
             else:
                 self.current_id, self.counter = new_id, 1
-                logging.info(f"Chicken {self.current_id} left.")
+                logging.info(f"Chicken {self.current_id} left on {reader_id}.")
 
         self.last_id = new_id
 
@@ -98,12 +89,32 @@ def convert_data_to_id(data_to_convert: bytes) -> int:
         return -1
 
 
-def data_reader() -> None:
-    """Thread for reading data from the serial port."""
-    while True:
-        if SER.in_waiting > 0:
-            data = SER.read(16)
-            ID_QUEUE.put(data)
+class SerialPortReader:
+    def __init__(self, port_name: str):
+        self.serial_port = serial.Serial(
+            port=port_name,
+            baudrate=9600,
+            bytesize=serial.EIGHTBITS,
+            parity=serial.PARITY_NONE,
+            stopbits=serial.STOPBITS_ONE,
+            timeout=5,
+        )
+        self.reader_id = f"Reader_{port_name}"
+        self.thread = threading.Thread(target=self.data_reader, daemon=True)
+
+    def start(self):
+        self.thread.start()
+
+    def data_reader(self) -> None:
+        """Thread for reading data from the serial port."""
+        while True:
+            if self.serial_port.in_waiting > 0:
+                data = self.serial_port.read(16)
+                ID_QUEUE.put((data, self.reader_id))
+
+    def close(self):
+        if self.serial_port.is_open:
+            self.serial_port.close()
 
 
 def event_processor() -> None:
@@ -112,15 +123,21 @@ def event_processor() -> None:
 
     while True:
         try:
-            reader_data = ID_QUEUE.get(timeout=1)
+            reader_data, reader_id = ID_QUEUE.get(timeout=1)
             new_id = convert_data_to_id(reader_data)
 
-            processor.process_new_id(new_id)
+            processor.process_new_id(new_id, reader_id)
 
         except queue.Empty:
             continue
         except Exception as e:
             logging.error(f"Unexpected error in event processor: {e}")
+
+
+def find_serial_ports() -> list:
+    """Finds all available serial ports."""
+    ports = serial.tools.list_ports.comports()
+    return [port.device for port in ports]
 
 
 if __name__ == "__main__":
@@ -130,20 +147,31 @@ if __name__ == "__main__":
         handlers=[logging.StreamHandler()],  # , logging.FileHandler("egg_lay_log.log")
     )
 
-    try:
-        reader_thread = threading.Thread(target=data_reader, daemon=True)
-        event_processor_thread = threading.Thread(target=event_processor, daemon=True)
+    # Automatically detect available serial ports
+    serial_port_names = find_serial_ports()
+    logging.info(f"Detected serial ports: {serial_port_names}")
 
-        reader_thread.start()
+    # Create SerialPortReader instances
+    serial_port_readers = [SerialPortReader(port_name) for port_name in serial_port_names]
+
+    try:
+        # Start all reader threads
+        for reader in serial_port_readers:
+            reader.start()
+
+        # Start the event processor thread
+        event_processor_thread = threading.Thread(target=event_processor, daemon=True)
         event_processor_thread.start()
 
-        reader_thread.join()
+        # Join all reader threads
+        for reader in serial_port_readers:
+            reader.thread.join()
         event_processor_thread.join()
 
     except KeyboardInterrupt:
         logging.info("Shutting down...")
 
     finally:
-        if SER.is_open:
-            SER.close()
-        logging.info("Serial port closed")
+        for reader in serial_port_readers:
+            reader.close()
+        logging.info("Serial ports closed")
