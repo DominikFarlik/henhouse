@@ -1,10 +1,11 @@
-from datetime import datetime
 import logging
 import queue
 import sqlite3
 import threading
-import serial
-import serial.tools.list_ports
+from datetime import datetime
+
+import serial  # type: ignore
+import serial.tools.list_ports  # type: ignore
 
 # Constants
 LAY_COUNTER = 5  # Number of chip reads
@@ -25,10 +26,17 @@ class EggLayProcessor:
         found_chicken = self.check_for_egg(new_id, reader_id)
         # Appends new chicken to be processed
         if not found_chicken:
-            new_chicken = {"chip_id": new_id, "enter_time": datetime.now(),
-                           "reader_id": reader_id, "counter": 1, "last_read": datetime.now()}
+            new_chicken = {
+                "chip_id": new_id,
+                "enter_time": datetime.now(),
+                "reader_id": reader_id,
+                "counter": 1,
+                "last_read": datetime.now(),
+            }
             self.chickens.append(new_chicken)
-            logging.info(f"{new_chicken["enter_time"]} - Chicken {new_id} entered on {reader_id}.")
+            logging.info(
+                f"{new_chicken['enter_time']} - Chicken {new_id} entered on {reader_id}."
+            )
 
     def check_for_egg(self, new_id, reader_id: str) -> bool:
         """Checking if chicken is constantly standing long enough on reader"""
@@ -37,11 +45,20 @@ class EggLayProcessor:
                 chicken["counter"] += 1
                 chicken["last_read"] = datetime.now()
                 elapsed_time = datetime.now() - chicken["enter_time"]
-                if chicken["counter"] >= LAY_COUNTER and elapsed_time.total_seconds() >= LAY_TIME:
-                    write_event_to_db(chicken["chip_id"], chicken["reader_id"],
-                                      datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "egg")
+                if (
+                    chicken["counter"] >= LAY_COUNTER
+                    and elapsed_time.total_seconds() >= LAY_TIME
+                ):
+                    write_event_to_db(
+                        chicken["chip_id"],
+                        chicken["reader_id"],
+                        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "egg",
+                    )
                     chicken["counter"] = 0
-                    logging.info(f"Chicken {chicken["chip_id"]} laid an egg on {reader_id}.")
+                    logging.info(
+                        f"Chicken {chicken['chip_id']} laid an egg on {reader_id}."
+                    )
                     return True
                 else:
                     return True
@@ -52,13 +69,21 @@ class EggLayProcessor:
         """Checking if chicken left the reader"""
         for chicken in self.chickens:
             if (datetime.now() - chicken["last_read"]).total_seconds() >= LEAVE_TIME:
-                logging.info(f"Chicken {chicken["chip_id"]} left {chicken["reader_id"]}.")
-                write_event_to_db(chicken["chip_id"], chicken["reader_id"],
-                                  chicken["last_read"].strftime("%Y-%m-%d %H:%M:%S"), "left")
+                logging.info(
+                    f"Chicken {chicken['chip_id']} left {chicken['reader_id']} {LEAVE_TIME} seconds ago."
+                )
+                write_event_to_db(
+                    chicken["chip_id"],
+                    chicken["reader_id"],
+                    chicken["last_read"].strftime("%Y-%m-%d %H:%M:%S"),
+                    "left",
+                )
                 self.chickens.pop(self.chickens.index(chicken))
 
 
-def write_event_to_db(chip_id: int, reader_id: str, event_time: str, event_type: str) -> None:
+def write_event_to_db(
+    chip_id: int, reader_id: str, event_time: str, event_type: str
+) -> None:
     """Writes received data to the database with the current timestamp."""
     try:
         with sqlite3.connect("henhouse.db") as connection:
@@ -97,6 +122,7 @@ class SerialPortReader:
             timeout=5,
         )
         self.reader_id = f"Reader_{port_name}"
+        self.running = True
         self.thread = threading.Thread(target=self.data_reader, daemon=True)
 
     def start(self):
@@ -104,12 +130,22 @@ class SerialPortReader:
 
     def data_reader(self) -> None:
         """Thread for reading data from the serial port."""
-        while True:
-            if self.serial_port.in_waiting > 0:
-                data = self.serial_port.read(16)
-                ID_QUEUE.put((data, self.reader_id))
+        while self.running:
+            try:
+                if self.serial_port.in_waiting > 0:
+                    data = self.serial_port.read(16)
+                    ID_QUEUE.put((data, self.reader_id))
+
+            except serial.SerialException as e:
+                logging.error(f"Serial exception on {self.reader_id}: {e}")
+                break
+
+            except Exception as e:
+                logging.error(f"Unexpected exception on {self.reader_id}: {e}")
+                break
 
     def close(self):
+        self.running = False
         if self.serial_port.is_open:
             self.serial_port.close()
 
@@ -152,7 +188,9 @@ if __name__ == "__main__":
     logging.info(f"Detected serial ports: {serial_port_names}")
 
     # Create SerialPortReader instances
-    serial_port_readers = [SerialPortReader(port_name) for port_name in serial_port_names]
+    serial_port_readers = [
+        SerialPortReader(port_name) for port_name in serial_port_names
+    ]
 
     try:
         # Start all reader threads
