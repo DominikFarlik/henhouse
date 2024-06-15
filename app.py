@@ -12,19 +12,37 @@ LAY_COUNTER = 5  # Number of chip reads
 LAY_TIME = 10  # Duration to determine whether egg was laid
 LEAVE_TIME = 10  # Duration to determine whether chicken left
 
-# Global variables
-ID_QUEUE: queue.Queue[tuple[bytes, str]] = queue.Queue()
 
-
-class EggLayProcessor:
-    def __init__(self):
+class EventProcessor:
+    def __init__(self, event_queue: queue.Queue):
         self.chickens = []
+        self.event_queue = event_queue
+        self.running = True
+        self.thread = threading.Thread(target=self.run, daemon=True)
 
-    # Takes id from reader and checks its state
+    def start(self):
+        self.thread.start()
+
+    def run(self):
+        """Thread function to process events from the queue."""
+        while self.running:
+            try:
+                reader_data, reader_id = self.event_queue.get(timeout=1)
+                new_id = convert_data_to_id(reader_data)
+
+                if new_id != -1:
+                    self.process_new_chip_id(new_id, reader_id)
+                    self.check_if_left()
+
+            except queue.Empty:
+                continue
+
+            except Exception as e:
+                logging.error(f"Unexpected error in event processor: {e}")
+
     def process_new_chip_id(self, new_id: int, reader_id: str) -> None:
         """Process the new ID and update counters and states."""
         found_chicken = self.check_for_egg(new_id, reader_id)
-        # Appends new chicken to be processed
         if not found_chicken:
             new_chicken = {
                 "chip_id": new_id,
@@ -46,8 +64,8 @@ class EggLayProcessor:
                 chicken["last_read"] = datetime.now()
                 elapsed_time = datetime.now() - chicken["enter_time"]
                 if (
-                    chicken["counter"] >= LAY_COUNTER
-                    and elapsed_time.total_seconds() >= LAY_TIME
+                        chicken["counter"] >= LAY_COUNTER
+                        and elapsed_time.total_seconds() >= LAY_TIME
                 ):
                     write_event_to_db(
                         chicken["chip_id"],
@@ -80,10 +98,11 @@ class EggLayProcessor:
                 )
                 self.chickens.pop(self.chickens.index(chicken))
 
+    def stop(self):
+        self.running = False
 
-def write_event_to_db(
-    chip_id: int, reader_id: str, event_time: str, event_type: str
-) -> None:
+
+def write_event_to_db(chip_id: int, reader_id: str, event_time: str, event_type: str) -> None:
     """Writes received data to the database with the current timestamp."""
     try:
         with sqlite3.connect("henhouse.db") as connection:
@@ -112,7 +131,7 @@ def convert_data_to_id(data_to_convert: bytes) -> int:
 
 
 class SerialPortReader:
-    def __init__(self, port_name: str):
+    def __init__(self, port_name: str, event_queue: queue.Queue):
         self.serial_port = serial.Serial(
             port=port_name,
             baudrate=9600,
@@ -122,19 +141,20 @@ class SerialPortReader:
             timeout=5,
         )
         self.reader_id = f"Reader_{port_name}"
+        self.event_queue = event_queue
         self.running = True
-        self.thread = threading.Thread(target=self.data_reader, daemon=True)
+        self.thread = threading.Thread(target=self.run, daemon=True)
 
     def start(self):
         self.thread.start()
 
-    def data_reader(self) -> None:
+    def run(self) -> None:
         """Thread for reading data from the serial port."""
         while self.running:
             try:
                 if self.serial_port.in_waiting > 0:
                     data = self.serial_port.read(16)
-                    ID_QUEUE.put((data, self.reader_id))
+                    self.event_queue.put((data, self.reader_id))
 
             except serial.SerialException as e:
                 logging.error(f"Serial exception on {self.reader_id}: {e}")
@@ -148,25 +168,6 @@ class SerialPortReader:
         self.running = False
         if self.serial_port.is_open:
             self.serial_port.close()
-
-
-def event_processor() -> None:
-    """Thread for processing events."""
-    # Instance for processor class
-    processor = EggLayProcessor()
-
-    while True:
-        try:
-            reader_data, reader_id = ID_QUEUE.get(timeout=1)
-            new_id = convert_data_to_id(reader_data)
-
-            processor.process_new_chip_id(new_id, reader_id)
-            processor.check_if_left()
-
-        except queue.Empty:
-            continue
-        except Exception as e:
-            logging.error(f"Unexpected error in event processor: {e}")
 
 
 def find_serial_ports() -> list:
@@ -187,24 +188,35 @@ if __name__ == "__main__":
     serial_port_names = find_serial_ports()
     logging.info(f"Detected serial ports: {serial_port_names}")
 
+    # Create a queues
+    event_queues = {port_name: queue.Queue() for port_name in serial_port_names}
+
     # Create SerialPortReader instances
     serial_port_readers = [
-        SerialPortReader(port_name) for port_name in serial_port_names
+        SerialPortReader(port_name, event_queues[port_name]) for port_name in serial_port_names
+    ]
+
+    # Create EventProcessor instances
+    event_processors = [
+        EventProcessor(event_queue) for port_name, event_queue in event_queues.items()
     ]
 
     try:
+        # Start all EventProcessor threads
+        for processor in event_processors:
+            processor.start()
+
         # Start all reader threads
         for reader in serial_port_readers:
             reader.start()
 
-        # Start the event processor thread
-        event_processor_thread = threading.Thread(target=event_processor, daemon=True)
-        event_processor_thread.start()
-
         # Join all reader threads
         for reader in serial_port_readers:
             reader.thread.join()
-        event_processor_thread.join()
+
+        # Join all processor threads
+        for processor in event_processors:
+            processor.thread.join()
 
     except KeyboardInterrupt:
         logging.info("Shutting down...")
@@ -212,4 +224,6 @@ if __name__ == "__main__":
     finally:
         for reader in serial_port_readers:
             reader.close()
+        for processor in event_processors:
+            processor.stop()
         logging.info("Serial ports closed")
