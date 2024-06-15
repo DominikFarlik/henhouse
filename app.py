@@ -15,7 +15,7 @@ LEAVE_TIME = 10  # Duration to determine whether chicken left
 
 class EventProcessor:
     def __init__(self, event_queue: queue.Queue):
-        self.chickens = []
+        self.chickens: list[dict] = []
         self.event_queue = event_queue
         self.running = True
         self.thread = threading.Thread(target=self.run, daemon=True)
@@ -64,8 +64,8 @@ class EventProcessor:
                 chicken["last_read"] = datetime.now()
                 elapsed_time = datetime.now() - chicken["enter_time"]
                 if (
-                        chicken["counter"] >= LAY_COUNTER
-                        and elapsed_time.total_seconds() >= LAY_TIME
+                    chicken["counter"] >= LAY_COUNTER
+                    and elapsed_time.total_seconds() >= LAY_TIME
                 ):
                     write_event_to_db(
                         chicken["chip_id"],
@@ -88,7 +88,7 @@ class EventProcessor:
         for chicken in self.chickens:
             if (datetime.now() - chicken["last_read"]).total_seconds() >= LEAVE_TIME:
                 logging.info(
-                    f"Chicken {chicken['chip_id']} left {chicken['reader_id']} {LEAVE_TIME} seconds ago."
+                    f"Chicken {chicken['chip_id']} left {chicken['reader_id']} {chicken['last_read'].strftime('%m-%d %H:%M:%S')}."
                 )
                 write_event_to_db(
                     chicken["chip_id"],
@@ -102,7 +102,9 @@ class EventProcessor:
         self.running = False
 
 
-def write_event_to_db(chip_id: int, reader_id: str, event_time: str, event_type: str) -> None:
+def write_event_to_db(
+    chip_id: int, reader_id: str, event_time: str, event_type: str
+) -> None:
     """Writes received data to the database with the current timestamp."""
     try:
         with sqlite3.connect("henhouse.db") as connection:
@@ -189,11 +191,12 @@ if __name__ == "__main__":
     logging.info(f"Detected serial ports: {serial_port_names}")
 
     # Create a queues
-    event_queues = {port_name: queue.Queue() for port_name in serial_port_names}
+    event_queues: dict = {port_name: queue.Queue() for port_name in serial_port_names}
 
     # Create SerialPortReader instances
     serial_port_readers = [
-        SerialPortReader(port_name, event_queues[port_name]) for port_name in serial_port_names
+        SerialPortReader(port_name, event_queues[port_name])
+        for port_name in serial_port_names
     ]
 
     # Create EventProcessor instances
