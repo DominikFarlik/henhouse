@@ -30,8 +30,8 @@ class EggLayProcessor:
             self.chickens.append(new_chicken)
             logging.info(f"{new_chicken["enter_time"]} - Chicken {new_id} entered on {reader_id}.")
 
-    # Checking if chicken is constantly standing long enough on reader
     def check_for_egg(self, new_id, reader_id: str) -> bool:
+        """Checking if chicken is constantly standing long enough on reader"""
         for chicken in self.chickens:
             if chicken["chip_id"] == new_id:
                 chicken["counter"] += 1
@@ -49,12 +49,11 @@ class EggLayProcessor:
         return False
 
     def check_if_left(self) -> None:
-        print("here")
+        """Checking if chicken left the reader"""
         for chicken in self.chickens:
-            print((datetime.now() - chicken["last_read"]).total_seconds())
             if (datetime.now() - chicken["last_read"]).total_seconds() >= LEAVE_TIME:
                 logging.info(f"Chicken {chicken["chip_id"]} left {chicken["reader_id"]}.")
-                write_event_to_db(chicken["chip_id"], chicken["reader_id"], 
+                write_event_to_db(chicken["chip_id"], chicken["reader_id"],
                                   chicken["last_read"].strftime("%Y-%m-%d %H:%M:%S"), "left")
                 self.chickens.pop(self.chickens.index(chicken))
 
