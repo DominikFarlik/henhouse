@@ -53,6 +53,12 @@ class EventProcessor:
             }
             self.chickens.append(new_chicken)
             logging.info(f"Chicken {new_id} entered on {reader_id}.")
+            write_event_to_db(
+                new_chicken["chip_id"],
+                new_chicken["reader_id"],
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "enter",
+            )
 
     def check_for_egg(self, new_id, reader_id: str) -> bool:
         """Checking if chicken is constantly standing long enough on reader"""
