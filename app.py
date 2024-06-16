@@ -52,9 +52,7 @@ class EventProcessor:
                 "last_read": datetime.now(),
             }
             self.chickens.append(new_chicken)
-            logging.info(
-                f"{new_chicken['enter_time']} - Chicken {new_id} entered on {reader_id}."
-            )
+            logging.info(f"Chicken {new_id} entered on {reader_id}.")
 
     def check_for_egg(self, new_id, reader_id: str) -> bool:
         """Checking if chicken is constantly standing long enough on reader"""
@@ -88,7 +86,8 @@ class EventProcessor:
         for chicken in self.chickens:
             if (datetime.now() - chicken["last_read"]).total_seconds() >= LEAVE_TIME:
                 logging.info(
-                    f"Chicken {chicken['chip_id']} left {chicken['reader_id']} {chicken['last_read'].strftime('%m-%d %H:%M:%S')}."
+                    f"Chicken {chicken['chip_id']} left {chicken['reader_id']} "
+                    f"{chicken['last_read'].strftime('%Y-%m-%d %H:%M:%S')}."
                 )
                 write_event_to_db(
                     chicken["chip_id"],
