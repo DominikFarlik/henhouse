@@ -3,6 +3,7 @@ import queue
 import sqlite3
 import threading
 from datetime import datetime
+from dataclasses import dataclass
 
 import serial  # type: ignore
 import serial.tools.list_ports  # type: ignore
@@ -13,9 +14,18 @@ LAY_TIME = 10  # Duration to determine whether egg was laid
 LEAVE_TIME = 10  # Duration to determine whether chicken left
 
 
+@dataclass
+class Chicken:
+    chip_id: int
+    reader_id: str
+    counter: int
+    enter_time: datetime
+    last_read: datetime
+
+
 class EventProcessor:
     def __init__(self, event_queue: queue.Queue):
-        self.chickens: list[dict] = []
+        self.chickens: list[Chicken] = []
         self.event_queue = event_queue
         self.running = True
         self.thread = threading.Thread(target=self.run, daemon=True)
@@ -44,15 +54,9 @@ class EventProcessor:
         """Process the new ID and update counters and states."""
         found_chicken = self.check_for_egg(new_id, reader_id)
         if not found_chicken:
-            new_chicken = {
-                "chip_id": new_id,
-                "enter_time": datetime.now(),
-                "reader_id": reader_id,
-                "counter": 1,
-                "last_read": datetime.now(),
-            }
-            self.chickens.append(new_chicken)
-            logging.info(f"Chicken {new_id} entered on {reader_id}.")
+            chicken = Chicken(new_id, reader_id, 1, datetime.now(), datetime.now())
+            self.chickens.append(chicken)
+            logging.info(f"Chicken {chicken.chip_id} entered on {chicken.reader_id}.")
             write_event_to_db(
                 new_id,
                 reader_id,
@@ -63,24 +67,19 @@ class EventProcessor:
     def check_for_egg(self, new_id, reader_id: str) -> bool:
         """Checking if chicken is constantly standing long enough on reader"""
         for chicken in self.chickens:
-            if chicken["chip_id"] == new_id:
-                chicken["counter"] += 1
-                chicken["last_read"] = datetime.now()
-                elapsed_time = datetime.now() - chicken["enter_time"]
-                if (
-                    chicken["counter"] >= LAY_COUNTER
-                    and elapsed_time.total_seconds() >= LAY_TIME
-                ):
+            if chicken.chip_id == new_id:
+                chicken.counter += 1
+                chicken.last_read = datetime.now()
+                elapsed_time = datetime.now() - chicken.enter_time
+                if chicken.counter >= LAY_COUNTER and elapsed_time.total_seconds() >= LAY_TIME:
                     write_event_to_db(
-                        chicken["chip_id"],
-                        chicken["reader_id"],
+                        chicken.chip_id,
+                        chicken.reader_id,
                         datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                         "egg",
                     )
-                    chicken["counter"] = 0
-                    logging.info(
-                        f"Chicken {chicken['chip_id']} laid an egg on {reader_id}."
-                    )
+                    chicken.counter = 0
+                    logging.info(f"Chicken {chicken.chip_id} laid an egg on {reader_id}.")
                     return True
                 else:
                     return True
@@ -90,15 +89,15 @@ class EventProcessor:
     def check_if_left(self) -> None:
         """Checking if chicken left the reader"""
         for chicken in self.chickens:
-            if (datetime.now() - chicken["last_read"]).total_seconds() >= LEAVE_TIME:
+            if (datetime.now() - chicken.last_read).total_seconds() >= LEAVE_TIME:
                 logging.info(
-                    f"Chicken {chicken['chip_id']} left {chicken['reader_id']} "
-                    f"{chicken['last_read'].strftime('%Y-%m-%d %H:%M:%S')}."
+                    f"Chicken {chicken.chip_id} left {chicken.reader_id} "
+                    f"{chicken.last_read.strftime('%Y-%m-%d %H:%M:%S')}."
                 )
                 write_event_to_db(
-                    chicken["chip_id"],
-                    chicken["reader_id"],
-                    chicken["last_read"].strftime("%Y-%m-%d %H:%M:%S"),
+                    chicken.chip_id,
+                    chicken.reader_id,
+                    chicken.last_read.strftime("%Y-%m-%d %H:%M:%S"),
                     "left",
                 )
                 self.chickens.pop(self.chickens.index(chicken))
@@ -108,7 +107,7 @@ class EventProcessor:
 
 
 def write_event_to_db(
-    chip_id: int, reader_id: str, event_time: str, event_type: str
+        chip_id: int, reader_id: str, event_time: str, event_type: str
 ) -> None:
     """Writes received data to the database."""
     lock = threading.Lock()
