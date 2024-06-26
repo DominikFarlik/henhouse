@@ -4,14 +4,21 @@ import sqlite3
 import threading
 from datetime import datetime
 from dataclasses import dataclass
+import requests
+from requests.auth import HTTPBasicAuth
 
 import serial  # type: ignore
 import serial.tools.list_ports  # type: ignore
 
-# Constants
+# App constants
 LAY_COUNTER = 5  # Number of chip reads
 LAY_TIME = 10  # Duration to determine whether egg was laid
 LEAVE_TIME = 10  # Duration to determine whether chicken left
+
+# API constants
+API_USERNAME = "Terminal2786"
+API_PASSWORD = "9wVdGGZ5"
+TIME_ZONE_OFFSET = 60  # Difference between UTC and Local time in minutes
 
 
 @dataclass
@@ -27,6 +34,7 @@ class EventProcessor:
     def __init__(self, event_queue: queue.Queue):
         self.chickens: list[Chicken] = []
         self.event_queue = event_queue
+        self.record_id = get_starting_id_for_api()
         self.running = True
         self.thread = threading.Thread(target=self.run, daemon=True)
 
@@ -64,6 +72,15 @@ class EventProcessor:
                 "enter",
             )
 
+            create_api_record(
+                datetime.now().isoformat(),
+                self.record_id,
+                chicken.chip_id,
+                0
+            )
+            self.record_id += 1
+            print(self.record_id)
+
     def check_for_egg(self, new_id, reader_id: str) -> bool:
         """Checking if chicken is constantly standing long enough on reader"""
         for chicken in self.chickens:
@@ -78,6 +95,15 @@ class EventProcessor:
                         datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                         "egg",
                     )
+
+                    create_api_record(
+                        datetime.now().isoformat(),
+                        self.record_id,
+                        chicken.chip_id,
+                        9000
+                    )
+                    self.record_id += 1
+
                     chicken.counter = 0
                     logging.info(f"Chicken {chicken.chip_id} laid an egg on {reader_id}.")
                     return True
@@ -94,12 +120,21 @@ class EventProcessor:
                     f"Chicken {chicken.chip_id} left {chicken.reader_id} "
                     f"{chicken.last_read.strftime('%Y-%m-%d %H:%M:%S')}."
                 )
+
                 write_event_to_db(
                     chicken.chip_id,
                     chicken.reader_id,
                     chicken.last_read.strftime("%Y-%m-%d %H:%M:%S"),
                     "left",
                 )
+
+                create_api_record(
+                    chicken.last_read.isoformat(),
+                    self.record_id,
+                    chicken.chip_id,
+                    1
+                )
+                self.record_id += 1
                 self.chickens.pop(self.chickens.index(chicken))
 
     def stop(self):
@@ -184,6 +219,35 @@ def find_serial_ports() -> list:
     return [port.device for port in ports]
 
 
+def get_starting_id_for_api() -> int:
+    response = requests.get('https://itaserver-staging.mobatime.cloud/api/TimeAttendanceRecordId',
+                            auth=HTTPBasicAuth(API_USERNAME, API_PASSWORD))
+    data = response.json()
+    return data['LastTimeAttendanceRecordId'] + 1
+
+
+def create_api_record(time: str, record_id: int, rfid: int, record_type: int) -> None:
+    PARAMS = \
+        {
+            "TerminalTime": time,
+            "TerminalTimeZone": TIME_ZONE_OFFSET,
+            "IsImmediate": False,
+            "TimeAttendanceRecords":
+                [
+                    {
+                        "RecordId": record_id,
+                        "RecordType": record_type,
+                        "RFID": rfid,
+                        "Punched": datetime.now().isoformat()
+                    }
+                ]
+        }
+
+    response = requests.post('https://itaserver-staging.mobatime.cloud/api/TimeAttendance',
+                             json=PARAMS,
+                             auth=HTTPBasicAuth(API_USERNAME, API_PASSWORD))
+
+
 if __name__ == "__main__":
     # Logging configuration
     logging.basicConfig(
@@ -196,24 +260,19 @@ if __name__ == "__main__":
     serial_port_names = find_serial_ports()
     logging.info(f"Detected serial ports: {serial_port_names}")
 
-    # Create a queues
-    event_queues: dict = {port_name: queue.Queue() for port_name in serial_port_names}
+    event_queue = queue.Queue()
+
+    event_processor = EventProcessor(event_queue)
 
     # Create SerialPortReader instances
     serial_port_readers = [
-        SerialPortReader(port_name, event_queues[port_name])
+        SerialPortReader(port_name, event_queue)
         for port_name in serial_port_names
     ]
 
-    # Create EventProcessor instances
-    event_processors = [
-        EventProcessor(event_queue) for port_name, event_queue in event_queues.items()
-    ]
-
     try:
-        # Start all EventProcessor threads
-        for processor in event_processors:
-            processor.start()
+        # Start the EventProcessor thread
+        event_processor.start()
 
         # Start all reader threads
         for reader in serial_port_readers:
@@ -223,9 +282,8 @@ if __name__ == "__main__":
         for reader in serial_port_readers:
             reader.thread.join()
 
-        # Join all processor threads
-        for processor in event_processors:
-            processor.thread.join()
+        # Join the processor thread
+        event_processor.thread.join()
 
     except KeyboardInterrupt:
         logging.info("Shutting down...")
@@ -233,6 +291,5 @@ if __name__ == "__main__":
     finally:
         for reader in serial_port_readers:
             reader.close()
-        for processor in event_processors:
-            processor.stop()
+        event_processor.stop()
         logging.info("Serial ports closed")
