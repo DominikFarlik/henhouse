@@ -6,14 +6,10 @@ from datetime import datetime
 from dataclasses import dataclass
 import requests
 from requests.auth import HTTPBasicAuth
+import configparser
 
 import serial  # type: ignore
 import serial.tools.list_ports  # type: ignore
-
-# App constants
-LAY_COUNTER = 35  # Number of chip reads
-LAY_TIME = 60  # Duration to determine whether egg was laid
-LEAVE_TIME = 10  # Duration to determine whether chicken left
 
 
 @dataclass
@@ -44,7 +40,7 @@ class APIClient:
             logging.error(f"Failed to get starting ID from API: {e}")
             raise
 
-    def create_api_record(self, time: str, rfid: int, record_type: int) -> None:
+    def create_api_record(self, time: str, rfid: int, record_type: int, reader_id: str) -> None:
         params = {
             "TerminalTime": time,
             "TerminalTimeZone": self.time_zone_offset,
@@ -54,7 +50,8 @@ class APIClient:
                     "RecordId": self.record_id,
                     "RecordType": record_type,
                     "RFID": rfid,
-                    "Punched": datetime.now().isoformat()
+                    "Punched": datetime.now().isoformat(),
+                    "HWSource": reader_id[-1]
                 }
             ]
         }
@@ -116,7 +113,8 @@ class EventProcessor:
             self.api_client.create_api_record(
                 datetime.now().isoformat(),
                 chicken.chip_id,
-                0
+                0,
+                chicken.reader_id
             )
 
     def check_for_egg(self, new_id, reader_id: str) -> bool:
@@ -137,7 +135,8 @@ class EventProcessor:
                     self.api_client.create_api_record(
                         datetime.now().isoformat(),
                         chicken.chip_id,
-                        9000
+                        9000,
+                        chicken.reader_id
                     )
                     chicken.counter = 0
                     logging.info(f"Chicken {chicken.chip_id} laid an egg on {reader_id}.")
@@ -166,7 +165,8 @@ class EventProcessor:
                 self.api_client.create_api_record(
                     chicken.last_read.isoformat(),
                     chicken.chip_id,
-                    1
+                    1,
+                    chicken.reader_id
                 )
                 self.chickens.pop(self.chickens.index(chicken))
 
@@ -258,6 +258,13 @@ def find_serial_ports() -> list:
     return port_list
 
 
+def read_config(filename='config.ini'):
+    """Reads the configuration"""
+    config = configparser.ConfigParser()
+    config.read(filename)
+    return config
+
+
 if __name__ == "__main__":
     # Logging configuration
     logging.basicConfig(
@@ -266,13 +273,26 @@ if __name__ == "__main__":
         handlers=[logging.StreamHandler()],  # , logging.FileHandler("egg_lay_log.log")
     )
 
+    # Read configuration from INI file
+    config = read_config()
+
+    # Read API settings
+    api_username = config.get('API', 'username')
+    api_password = config.get('API', 'password')
+    api_timezone_offset = config.getint('API', 'timezone_offset')
+
+    # Read global constants
+    LAY_COUNTER = config.getint('Constants', 'lay_counter')
+    LAY_TIME = config.getint('Constants', 'lay_time')
+    LEAVE_TIME = config.getint('Constants', 'leave_time')
+
     # Automatically detect available serial ports
     serial_port_names = find_serial_ports()
     logging.info(f"Detected serial ports: {serial_port_names}")
 
     event_queue = queue.Queue()
 
-    api_client = APIClient("Terminal2786", "9wVdGGZ5", 120)
+    api_client = APIClient(api_username, api_password, api_timezone_offset)
     event_processor = EventProcessor(event_queue, api_client)
 
     # Create SerialPortReader instances
