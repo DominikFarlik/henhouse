@@ -11,14 +11,9 @@ import serial  # type: ignore
 import serial.tools.list_ports  # type: ignore
 
 # App constants
-LAY_COUNTER = 5  # Number of chip reads
-LAY_TIME = 10  # Duration to determine whether egg was laid
+LAY_COUNTER = 35  # Number of chip reads
+LAY_TIME = 60  # Duration to determine whether egg was laid
 LEAVE_TIME = 10  # Duration to determine whether chicken left
-
-# API constants
-API_USERNAME = "Terminal2786"
-API_PASSWORD = "9wVdGGZ5"
-TIME_ZONE_OFFSET = 60  # Difference between UTC and Local time in minutes
 
 
 @dataclass
@@ -30,11 +25,57 @@ class Chicken:
     last_read: datetime
 
 
+class APIClient:
+    def __init__(self, username: str, password: str, time_zone_offset: int):
+        self.username = username
+        self.password = password
+        self.time_zone_offset = time_zone_offset
+        self.record_id = self.get_starting_id_for_api()
+
+    def get_starting_id_for_api(self) -> int:
+        try:
+            response = requests.get('https://itaserver-staging.mobatime.cloud/api/TimeAttendanceRecordId',
+                                    auth=HTTPBasicAuth(self.username, self.password))
+            response.raise_for_status()  # Ensure we raise an error for bad responses
+            data = response.json()
+            logging.info(f"Retrieved starting record ID: {data['LastTimeAttendanceRecordId'] + 1}")
+            return data['LastTimeAttendanceRecordId'] + 1
+        except requests.RequestException as e:
+            logging.error(f"Failed to get starting ID from API: {e}")
+            raise
+
+    def create_api_record(self, time: str, rfid: int, record_type: int) -> None:
+        params = {
+            "TerminalTime": time,
+            "TerminalTimeZone": self.time_zone_offset,
+            "IsImmediate": False,
+            "TimeAttendanceRecords": [
+                {
+                    "RecordId": self.record_id,
+                    "RecordType": record_type,
+                    "RFID": rfid,
+                    "Punched": datetime.now().isoformat()
+                }
+            ]
+        }
+
+        try:
+            response = requests.post('https://itaserver-staging.mobatime.cloud/api/TimeAttendance',
+                                     json=params,
+                                     auth=HTTPBasicAuth(self.username, self.password))
+            response.raise_for_status()  # Ensure we raise an error for bad responses
+            logging.info(f"Successfully created API record with ID: {self.record_id}")
+            self.record_id += 1  # Increment the record ID after a successful post
+        except requests.RequestException as e:
+            logging.error(f"Failed to create API record: {e}")
+            raise
+
+
 class EventProcessor:
-    def __init__(self, event_queue: queue.Queue):
+    def __init__(self, event_queue: queue.Queue, api_client: APIClient):
         self.chickens: list[Chicken] = []
         self.event_queue = event_queue
-        self.record_id = get_starting_id_for_api()
+        self.api_client = api_client
         self.running = True
         self.thread = threading.Thread(target=self.run, daemon=True)
 
@@ -72,14 +113,11 @@ class EventProcessor:
                 "enter",
             )
 
-            create_api_record(
+            self.api_client.create_api_record(
                 datetime.now().isoformat(),
-                self.record_id,
                 chicken.chip_id,
                 0
             )
-            self.record_id += 1
-            print(self.record_id)
 
     def check_for_egg(self, new_id, reader_id: str) -> bool:
         """Checking if chicken is constantly standing long enough on reader"""
@@ -96,14 +134,11 @@ class EventProcessor:
                         "egg",
                     )
 
-                    create_api_record(
+                    self.api_client.create_api_record(
                         datetime.now().isoformat(),
-                        self.record_id,
                         chicken.chip_id,
                         9000
                     )
-                    self.record_id += 1
-
                     chicken.counter = 0
                     logging.info(f"Chicken {chicken.chip_id} laid an egg on {reader_id}.")
                     return True
@@ -128,13 +163,11 @@ class EventProcessor:
                     "left",
                 )
 
-                create_api_record(
+                self.api_client.create_api_record(
                     chicken.last_read.isoformat(),
-                    self.record_id,
                     chicken.chip_id,
                     1
                 )
-                self.record_id += 1
                 self.chickens.pop(self.chickens.index(chicken))
 
     def stop(self):
@@ -155,6 +188,7 @@ def write_event_to_db(
                     (chip_id, reader_id, event_type, event_time),
                 )
                 connection.commit()
+                #  logging.info(f"Event written to DB: {chip_id}, {reader_id}, {event_type}, {event_time}")
         except sqlite3.Error as e:
             logging.error(f"Database error: {e}")
         except Exception as e:
@@ -167,6 +201,7 @@ def convert_data_to_id(data_to_convert: bytes) -> int:
         converted_data = data_to_convert.decode("ascii")
         raw_id = converted_data[3:11]
         converted_id = int(raw_id, 16)
+        #  logging.debug(f"Converted data to ID: {converted_id}")
         return converted_id
     except (ValueError, IndexError) as e:
         logging.error(f"Error converting data to ID: {e}")
@@ -197,6 +232,7 @@ class SerialPortReader:
             try:
                 if self.serial_port.in_waiting > 0:
                     data = self.serial_port.read(16)
+                    #  logging.debug(f"Data read from {self.reader_id}: {data}")
                     self.event_queue.put((data, self.reader_id))
 
             except serial.SerialException as e:
@@ -211,41 +247,15 @@ class SerialPortReader:
         self.running = False
         if self.serial_port.is_open:
             self.serial_port.close()
+            logging.info(f"Serial port {self.reader_id} closed")
 
 
 def find_serial_ports() -> list:
     """Finds all available serial ports."""
     ports = serial.tools.list_ports.comports()
-    return [port.device for port in ports]
-
-
-def get_starting_id_for_api() -> int:
-    response = requests.get('https://itaserver-staging.mobatime.cloud/api/TimeAttendanceRecordId',
-                            auth=HTTPBasicAuth(API_USERNAME, API_PASSWORD))
-    data = response.json()
-    return data['LastTimeAttendanceRecordId'] + 1
-
-
-def create_api_record(time: str, record_id: int, rfid: int, record_type: int) -> None:
-    PARAMS = \
-        {
-            "TerminalTime": time,
-            "TerminalTimeZone": TIME_ZONE_OFFSET,
-            "IsImmediate": False,
-            "TimeAttendanceRecords":
-                [
-                    {
-                        "RecordId": record_id,
-                        "RecordType": record_type,
-                        "RFID": rfid,
-                        "Punched": datetime.now().isoformat()
-                    }
-                ]
-        }
-
-    response = requests.post('https://itaserver-staging.mobatime.cloud/api/TimeAttendance',
-                             json=PARAMS,
-                             auth=HTTPBasicAuth(API_USERNAME, API_PASSWORD))
+    port_list = [port.device for port in ports]
+    logging.info(f"Available serial ports: {port_list}")
+    return port_list
 
 
 if __name__ == "__main__":
@@ -262,7 +272,8 @@ if __name__ == "__main__":
 
     event_queue = queue.Queue()
 
-    event_processor = EventProcessor(event_queue)
+    api_client = APIClient("Terminal2786", "9wVdGGZ5", 120)
+    event_processor = EventProcessor(event_queue, api_client)
 
     # Create SerialPortReader instances
     serial_port_readers = [
