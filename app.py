@@ -181,7 +181,7 @@ def write_event_to_db(
     lock = threading.Lock()
     with lock:
         try:
-            with sqlite3.connect("henhouse.db") as connection:
+            with sqlite3.connect(DB_PATH) as connection:
                 cursor = connection.cursor()
                 cursor.execute(
                     "INSERT INTO events (chip_id, reader_id, event_type, event_time) VALUES (?, ?, ?, ?)",
@@ -276,15 +276,15 @@ if __name__ == "__main__":
     # Read configuration from INI file
     config = read_config()
 
-    # Read API settings
     api_username = config.get('API', 'username')
     api_password = config.get('API', 'password')
     api_timezone_offset = config.getint('API', 'timezone_offset')
 
-    # Read global constants
     LAY_COUNTER = config.getint('Constants', 'lay_counter')
     LAY_TIME = config.getint('Constants', 'lay_time')
     LEAVE_TIME = config.getint('Constants', 'leave_time')
+
+    DB_PATH = config.get('Database', 'file_path')
 
     # Automatically detect available serial ports
     serial_port_names = find_serial_ports()
