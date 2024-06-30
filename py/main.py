@@ -1,10 +1,10 @@
 import logging
 import queue
 
-from py.event_processor import EventProcessor
-from py.api_client import APIClient
-from py.serial_reader import SerialPortReader, find_serial_ports
-from py.config import read_config
+from event_processor import EventProcessor
+from api_client import APIClient
+from serial_reader import SerialPortReader, find_serial_ports
+from config import read_config
 
 if __name__ == "__main__":
     # Logging configuration
@@ -25,7 +25,6 @@ if __name__ == "__main__":
 
     # Automatically detect available serial ports
     serial_port_names = find_serial_ports()
-    logging.info(f"Detected serial ports: {serial_port_names}")
 
     event_queue = queue.Queue()
 

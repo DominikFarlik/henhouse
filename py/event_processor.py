@@ -55,22 +55,22 @@ class EventProcessor:
         """Process the new ID and update counters and states."""
         found_chicken = self.check_for_egg(new_id, reader_id)
         if not found_chicken:
-            print(datetime.datetime.now())
             chicken = Chicken(new_id, reader_id, 1, datetime.datetime.now(), datetime.datetime.now())
             self.chickens.append(chicken)
             logging.info(f"Chicken {chicken.chip_id} entered on {chicken.reader_id}.")
+            in_api = self.api_client.create_api_record(
+                datetime.datetime.now().isoformat(),
+                chicken.chip_id,
+                0,
+                chicken.reader_id
+            )
+
             write_event_to_db(
                 new_id,
                 reader_id,
                 datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "enter",
-            )
-
-            self.api_client.create_api_record(
-                datetime.datetime.now().isoformat(),
-                chicken.chip_id,
-                0,
-                chicken.reader_id
+                in_api
             )
 
     def check_for_egg(self, new_id, reader_id: str) -> bool:
@@ -81,19 +81,21 @@ class EventProcessor:
                 chicken.last_read = datetime.datetime.now()
                 elapsed_time = datetime.datetime.now() - chicken.enter_time
                 if chicken.counter >= LAY_COUNTER and elapsed_time.total_seconds() >= LAY_TIME:
-                    write_event_to_db(
-                        chicken.chip_id,
-                        chicken.reader_id,
-                        datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        "egg",
-                    )
-
-                    self.api_client.create_api_record(
+                    in_api = self.api_client.create_api_record(
                         datetime.datetime.now().isoformat(),
                         chicken.chip_id,
                         9000,
                         chicken.reader_id
                     )
+
+                    write_event_to_db(
+                        chicken.chip_id,
+                        chicken.reader_id,
+                        datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "egg",
+                        in_api
+                    )
+
                     chicken.counter = 0
                     logging.info(f"Chicken {chicken.chip_id} laid an egg on {reader_id}.")
                     return True
@@ -110,20 +112,21 @@ class EventProcessor:
                     f"Chicken {chicken.chip_id} left {chicken.reader_id} "
                     f"{chicken.last_read.strftime('%Y-%m-%d %H:%M:%S')}."
                 )
+                in_api = self.api_client.create_api_record(
+                    chicken.last_read.isoformat(),
+                    chicken.chip_id,
+                    1,
+                    chicken.reader_id
+                )
 
                 write_event_to_db(
                     chicken.chip_id,
                     chicken.reader_id,
                     chicken.last_read.strftime("%Y-%m-%d %H:%M:%S"),
                     "left",
+                    in_api
                 )
 
-                self.api_client.create_api_record(
-                    chicken.last_read.isoformat(),
-                    chicken.chip_id,
-                    1,
-                    chicken.reader_id
-                )
                 self.chickens.pop(self.chickens.index(chicken))
 
     def stop(self):

@@ -1,7 +1,7 @@
 import logging
-import requests
+import requests  # type: ignore
 import datetime
-from requests.auth import HTTPBasicAuth
+from requests.auth import HTTPBasicAuth  # type: ignore
 
 
 class APIClient:
@@ -23,7 +23,7 @@ class APIClient:
             logging.error(f"Failed to get starting ID from API: {e}")
             raise
 
-    def create_api_record(self, time: str, rfid: int, record_type: int, reader_id: str) -> None:
+    def create_api_record(self, time: str, rfid: int, record_type: int, reader_id: str) -> int:
         params = {
             "TerminalTime": time,
             "TerminalTimeZone": self.time_zone_offset,
@@ -46,6 +46,7 @@ class APIClient:
             response.raise_for_status()  # Ensure we raise an error for bad responses
             logging.info(f"Successfully created API record with ID: {self.record_id}")
             self.record_id += 1  # Increment the record ID after a successful post
+            return 1
         except requests.RequestException as e:
             logging.error(f"Failed to create API record: {e}")
-            raise
+            return 0
