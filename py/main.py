@@ -1,10 +1,11 @@
 import logging
 import queue
+import threading
 
 from event_processor import EventProcessor
 from serial_reader import SerialPortReader, find_serial_ports
 
-from save_operations import fetch_failed_api_records, compare_api_db_id
+from save_operations import resend_failed_records, compare_api_db_id
 
 if __name__ == "__main__":
     # Logging configuration
@@ -27,12 +28,16 @@ if __name__ == "__main__":
         for port_name in serial_port_names
     ]
 
-    fetch_failed_api_records()
+    api_resend_thread = threading.Thread(target=resend_failed_records)
+
+    # checking if ids from db and api are matching
     compare_api_db_id()
 
     try:
         # Start the EventProcessor thread
         event_processor.start()
+
+        api_resend_thread.start()
 
         # Start all reader threads
         for reader in serial_port_readers:
@@ -44,6 +49,8 @@ if __name__ == "__main__":
 
         # Join the processor thread
         event_processor.thread.join()
+
+        api_resend_thread.join()
 
     except KeyboardInterrupt:
         logging.info("Shutting down...")
