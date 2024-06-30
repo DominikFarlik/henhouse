@@ -69,7 +69,7 @@ class EventProcessor:
                 new_id,
                 reader_id,
                 datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "enter",
+                0,
                 in_api
             )
 
@@ -92,7 +92,7 @@ class EventProcessor:
                         chicken.chip_id,
                         chicken.reader_id,
                         datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        "egg",
+                        9000,
                         in_api
                     )
 
@@ -123,7 +123,7 @@ class EventProcessor:
                     chicken.chip_id,
                     chicken.reader_id,
                     chicken.last_read.strftime("%Y-%m-%d %H:%M:%S"),
-                    "left",
+                    1,
                     in_api
                 )
 

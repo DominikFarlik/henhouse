@@ -2,10 +2,17 @@ import logging
 import requests  # type: ignore
 import datetime
 from requests.auth import HTTPBasicAuth  # type: ignore
+from config import read_config
+
+config = read_config()
+
+username = config.get('API', 'username')
+password = config.get('API', 'password')
+time_zone_offset = config.getint('API', 'timezone_offset')
 
 
 class APIClient:
-    def __init__(self, username: str, password: str, time_zone_offset: int):
+    def __init__(self):
         self.username = username
         self.password = password
         self.time_zone_offset = time_zone_offset

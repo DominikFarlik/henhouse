@@ -4,7 +4,8 @@ import queue
 from event_processor import EventProcessor
 from api_client import APIClient
 from serial_reader import SerialPortReader, find_serial_ports
-from config import read_config
+
+from db_operations import fetch_failed_api_records
 
 if __name__ == "__main__":
     # Logging configuration
@@ -14,19 +15,12 @@ if __name__ == "__main__":
         handlers=[logging.StreamHandler()],  # , logging.FileHandler("egg_lay_log.log")
     )
 
-    # Read configuration from INI file
-    config = read_config()
-
-    api_username = config.get('API', 'username')
-    api_password = config.get('API', 'password')
-    api_timezone_offset = config.getint('API', 'timezone_offset')
-
-    api_client = APIClient(api_username, api_password, api_timezone_offset)
+    api_client = APIClient()
 
     # Automatically detect available serial ports
     serial_port_names = find_serial_ports()
 
-    event_queue = queue.Queue()
+    event_queue: queue.Queue = queue.Queue()
 
     event_processor = EventProcessor(event_queue, api_client)
 
@@ -35,6 +29,8 @@ if __name__ == "__main__":
         SerialPortReader(port_name, event_queue)
         for port_name in serial_port_names
     ]
+
+    fetch_failed_api_records()
 
     try:
         # Start the EventProcessor thread

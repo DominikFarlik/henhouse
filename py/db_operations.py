@@ -9,7 +9,7 @@ DB_PATH = config.get('DB', 'file_path')
 
 
 def write_event_to_db(
-        chip_id: int, reader_id: str, event_time: str, event_type: str, in_api: int
+        chip_id: int, reader_id: str, event_time: str, event_type: int, in_api: int
 ) -> None:
     """Writes received data to the database."""
     lock = threading.Lock()
@@ -27,3 +27,13 @@ def write_event_to_db(
             logging.error(f"Database error: {e}")
         except Exception as e:
             logging.error(f"Unexpected error: {e}")
+
+
+def fetch_failed_api_records():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM events WHERE in_api = 1 LIMIT 5")
+    records = cursor.fetchall()
+    conn.close()
+    print(records)
+    return records
