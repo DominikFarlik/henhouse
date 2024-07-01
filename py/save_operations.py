@@ -81,6 +81,16 @@ def write_event_to_db(chip_id: int, reader_id: str, event_time: str, event_type:
             logging.error(f"Unexpected error: {e}")
 
 
+def get_number_of_unsend_records():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT count(*) FROM events WHERE in_api = 0")
+    data = cursor.fetchone()
+    number_of_unsend_records = data[0]
+    conn.close()
+    return number_of_unsend_records
+
+
 # api operations
 def fetch_failed_api_records():
     conn = sqlite3.connect(DB_PATH)
@@ -135,3 +145,4 @@ def get_starting_id_from_api() -> int:
     except requests.RequestException as e:
         logging.error(f"Failed to get last ID from API: {e}")
         raise
+

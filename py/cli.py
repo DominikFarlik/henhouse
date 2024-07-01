@@ -2,8 +2,8 @@ import logging
 
 import click
 import requests
-from requests.auth import HTTPBasicAuth
 from main import main
+from save_operations import get_number_of_unsend_records
 
 
 @click.group()
@@ -44,9 +44,15 @@ def activate(hw_id, activation_code):
         logging.error(f"Failed to fetch API credentials: {e}")
 
 
+@click.command(help='Number of records that are not sent to api yet.')
+def unsent_records():
+    print(get_number_of_unsend_records())
+
+
 # Add commands to the manage group
 manage.add_command(run)
 manage.add_command(activate)
+manage.add_command(unsent_records)
 
 if __name__ == '__main__':
     manage()
