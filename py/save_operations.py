@@ -13,7 +13,9 @@ config = read_config()
 
 DB_PATH = config.get('DB', 'file_path')
 
-RESEND_TIMER = 600
+RESEND_TIMER = 1800
+
+FAIL_LIMIT = 10
 
 # api constants
 username = config.get('API', 'username')
@@ -49,14 +51,29 @@ def resend_failed_records():
         records_to_resend = fetch_failed_api_records()
 
         for record in records_to_resend:
-            print(record)
-            in_api = create_api_record(record[0], record[2], record[1], record[4], record[3])
+            record_id = record[0]
+            rfid = record[1]
+            event_time = record[2]
+            reader_id = record[3]
+            record_type = record[4]
+
+            in_api = create_api_record(record_id, event_time, rfid, record_type, reader_id)
             if in_api == 1:
+                make_record_sent(record_id)
+            else:
                 conn = sqlite3.connect(DB_PATH)
                 cursor = conn.cursor()
-                cursor.execute("UPDATE events SET in_api = 1 WHERE id = ?", (record[0],))
+                cursor.execute("UPDATE events SET api_attempts = api_attempts + 1 WHERE id = ?", (record_id,))
                 conn.commit()
+
+                cursor.execute("SELECT api_attempts FROM events WHERE id = ?", (record[0],))
+                api_attempts = cursor.fetchone()[0]
                 conn.close()
+
+                if api_attempts >= FAIL_LIMIT:
+                    send_to_error_endpoint(record_id, event_time, rfid, record_type, reader_id)
+                    make_record_sent(record_id)
+
         time.sleep(RESEND_TIMER)
 
 
@@ -86,9 +103,9 @@ def get_number_of_unsend_records():
     cursor = conn.cursor()
     cursor.execute("SELECT count(*) FROM events WHERE in_api = 0")
     data = cursor.fetchone()
-    number_of_unsend_records = data[0]
+    number_of_unsent_records = data[0]
     conn.close()
-    return number_of_unsend_records
+    return number_of_unsent_records
 
 
 # api operations
@@ -101,9 +118,9 @@ def fetch_failed_api_records():
     return records
 
 
-def create_api_record(record_id: int, time: str, rfid: int, record_type: int, reader_id: str) -> int:
+def create_api_record(record_id: int, event_time: str, rfid: int, record_type: int, reader_id: str) -> int:
     params = {
-        "TerminalTime": time,
+        "TerminalTime": event_time,
         "TerminalTimeZone": time_zone_offset,
         "IsImmediate": False,
         "TimeAttendanceRecords": [
@@ -146,3 +163,37 @@ def get_starting_id_from_api() -> int:
         logging.error(f"Failed to get last ID from API: {e}")
         raise
 
+
+def make_record_sent(record_id: int) -> None:
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE events SET in_api = 1 WHERE id = ?", (record_id,))
+    conn.commit()
+    conn.close()
+
+
+def send_to_error_endpoint(record_id: int, event_time: str, rfid: int, record_type: int, reader_id: str):
+    params = {
+        "TerminalTime": event_time,
+        "TerminalTimeZone": time_zone_offset,
+        "IsImmediate": False,
+        "TimeAttendanceRecords": [
+            {
+                "RecordId": record_id,
+                "RecordType": record_type,
+                "RFID": rfid,
+                "Punched": datetime.datetime.now().isoformat(),
+                "HWSource": reader_id[-1]
+            }
+        ]
+    }
+
+    try:
+        response = requests.post(f'https://itaserver-staging.mobatime.cloud/api/ErrorReporting',
+                                 json=params,
+                                 auth=HTTPBasicAuth(username, password))
+
+        response.raise_for_status()
+
+    except requests.RequestException as e:
+        logging.error(f"Failed to sent record to error endpoint: {e}")

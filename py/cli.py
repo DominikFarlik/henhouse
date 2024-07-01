@@ -24,6 +24,7 @@ def run():
 @click.option('--hw_id', prompt='HWID', help='MAC address of the device.')
 @click.option('--activation_code', prompt='Activation code', help='Activation code for hardware terminal.')
 def activate(hw_id, activation_code):
+    """Return login credentials for api."""
     params = {
         "ActivationCode": activation_code
     }
@@ -46,7 +47,7 @@ def activate(hw_id, activation_code):
 
 @click.command(help='Number of records that are not sent to api yet.')
 def unsent_records():
-    print(get_number_of_unsend_records())
+    logging.info(f"Number of unsent records to api{get_number_of_unsend_records()}")
 
 
 # Add commands to the manage group
