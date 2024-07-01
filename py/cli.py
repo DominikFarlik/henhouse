@@ -34,7 +34,7 @@ def activate(hw_id, activation_code):
 
         data = response.json()
 
-        print(f"Id:{data['Id']}\n"
+        print(f"Id: {data['Id']}\n"
               f"Username: {data['Username']}\n"
               f"Password: {data['Password']}\n"
               f"CustomerName: {data['CustomerName']}\n"
