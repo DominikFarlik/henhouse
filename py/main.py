@@ -7,7 +7,8 @@ from serial_reader import SerialPortReader, find_serial_ports
 
 from save_operations import resend_failed_records, compare_api_db_id
 
-if __name__ == "__main__":
+
+def main():
     # Logging configuration
     logging.basicConfig(
         level=logging.DEBUG,
@@ -60,3 +61,7 @@ if __name__ == "__main__":
             reader.close()
         event_processor.stop()
         logging.info("Serial ports closed")
+
+
+if __name__ == "__main__":
+    main()

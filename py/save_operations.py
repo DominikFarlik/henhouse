@@ -46,7 +46,6 @@ def compare_api_db_id():
 
 def resend_failed_records():
     while True:
-        print("xxx")
         records_to_resend = fetch_failed_api_records()
 
         for record in records_to_resend:
