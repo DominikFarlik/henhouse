@@ -1,4 +1,8 @@
+import logging
+
 import click
+import requests
+from requests.auth import HTTPBasicAuth
 from main import main
 
 
@@ -20,7 +24,24 @@ def run():
 @click.option('--hw_id', prompt='HWID', help='MAC address of the device.')
 @click.option('--activation_code', prompt='Activation code', help='Activation code for hardware terminal.')
 def activate(hw_id, activation_code):
-    print(hw_id, activation_code)
+    params = {
+        "ActivationCode": activation_code
+    }
+
+    try:
+        response = requests.post(f'https://itaserver-staging.mobatime.cloud/api/TerminalActivation?hw_id={hw_id}',
+                                 json=params)
+
+        data = response.json()
+
+        print(f"Id:{data['Id']}\n"
+              f"Username: {data['Username']}\n"
+              f"Password: {data['Password']}\n"
+              f"CustomerName: {data['CustomerName']}\n"
+              f"CustomerId: {data['CustomerId']}")
+
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Failed to fetch API credentials: {e}")
 
 
 # Add commands to the manage group
