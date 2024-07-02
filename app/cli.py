@@ -3,7 +3,7 @@ import logging
 import click
 import requests
 from .__main__ import main
-from save_operations import get_number_of_unsend_records
+from .save_operations import get_number_of_unsend_records
 
 
 @click.group()
@@ -47,7 +47,7 @@ def activate(hw_id, activation_code):
 
 @click.command(help='Number of records that are not sent to api yet.')
 def unsent_records():
-    logging.info(f"Number of unsent records to api{get_number_of_unsend_records()}")
+    logging.info(f"Number of unsent records to api {get_number_of_unsend_records()}")
 
 
 # Add commands to the manage group
