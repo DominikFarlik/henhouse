@@ -25,6 +25,7 @@ url = config.get('API', 'url')
 
 
 def save_record(chip_id: int, reader_id: str, event_time: datetime, event_type: int) -> None:
+    """Saves record to database, then try to send to api and check if it was successful"""
     record_id = write_event_to_db(chip_id, reader_id, event_time, event_type)
     in_api = create_api_record(record_id, event_time, chip_id, event_type, reader_id)
     if in_api == 1:
@@ -36,6 +37,7 @@ def save_record(chip_id: int, reader_id: str, event_time: datetime, event_type: 
 
 
 def compare_api_db_id():
+    """Debug function to check if last id in database is equal to last id in api"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("SELECT MAX(id) FROM events")
@@ -48,6 +50,7 @@ def compare_api_db_id():
 
 
 def resend_failed_records():
+    """Repeatedly sends failed records to api till its successful or FAIL_LIMIT"""
     while True:
         records_to_resend = fetch_failed_api_records()
 
@@ -100,6 +103,7 @@ def write_event_to_db(chip_id: int, reader_id: str, event_time: str, event_type:
 
 
 def get_number_of_unsend_records():
+    """Returns the number of unsent records in the database."""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("SELECT count(*) FROM events WHERE in_api = 0")
@@ -109,8 +113,8 @@ def get_number_of_unsend_records():
     return number_of_unsent_records
 
 
-# api operations
 def fetch_failed_api_records():
+    """Returns the list of 5 failed records"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM events WHERE in_api = 0 LIMIT 5")
@@ -119,7 +123,9 @@ def fetch_failed_api_records():
     return records
 
 
+# api operations
 def create_api_record(record_id: int, event_time: str, rfid: int, record_type: int, reader_id: str) -> int:
+    """Sending new time attendance record to api"""
     params = {
         "TerminalTime": event_time,
         "TerminalTimeZone": time_zone_offset,
@@ -153,6 +159,7 @@ def create_api_record(record_id: int, event_time: str, rfid: int, record_type: i
 
 
 def get_starting_id_from_api() -> int:
+    """Get last id from api"""
     try:
         response = requests.get(f'{url}/api/TimeAttendanceRecordId',
                                 auth=HTTPBasicAuth(username, password))
@@ -166,6 +173,7 @@ def get_starting_id_from_api() -> int:
 
 
 def make_record_sent(record_id: int) -> None:
+    """Update in_api var in db to 1(successful)"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("UPDATE events SET in_api = 1 WHERE id = ?", (record_id,))
@@ -174,6 +182,7 @@ def make_record_sent(record_id: int) -> None:
 
 
 def send_to_error_endpoint(record_id: int, event_time: str, rfid: int, record_type: int, reader_id: str):
+    """After many failed sent records, send them to error endpoint."""
     params = {
         "TerminalTime": event_time,
         "TerminalTimeZone": time_zone_offset,
