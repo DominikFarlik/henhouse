@@ -4,3 +4,4 @@
 py/__pycache__
 henhouse.db
 app/__pycache__
+config.ini
