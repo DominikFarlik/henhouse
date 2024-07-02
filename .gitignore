@@ -1,4 +1,5 @@
 /.venv
 /venv
 /.idea
-/henhouse.db
+py/__pycache__
+henhouse.db

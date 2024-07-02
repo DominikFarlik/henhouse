@@ -21,6 +21,7 @@ FAIL_LIMIT = 10
 username = config.get('API', 'username')
 password = config.get('API', 'password')
 time_zone_offset = config.getint('API', 'timezone_offset')
+url = config.get('API', 'url')
 
 
 def save_record(chip_id: int, reader_id: str, event_time: datetime, event_type: int) -> None:
@@ -135,7 +136,7 @@ def create_api_record(record_id: int, event_time: str, rfid: int, record_type: i
     }
 
     try:
-        response = requests.post('https://itaserver-staging.mobatime.cloud/api/TimeAttendance',
+        response = requests.post(f'{url}/api/TimeAttendance',
                                  json=params,
                                  auth=HTTPBasicAuth(username, password))
         response.raise_for_status()  # Ensure we raise an error for bad responses
@@ -153,7 +154,7 @@ def create_api_record(record_id: int, event_time: str, rfid: int, record_type: i
 
 def get_starting_id_from_api() -> int:
     try:
-        response = requests.get('https://itaserver-staging.mobatime.cloud/api/TimeAttendanceRecordId',
+        response = requests.get(f'{url}/api/TimeAttendanceRecordId',
                                 auth=HTTPBasicAuth(username, password))
         response.raise_for_status()  # Ensure we raise an error for bad responses
         data = response.json()
@@ -189,7 +190,7 @@ def send_to_error_endpoint(record_id: int, event_time: str, rfid: int, record_ty
     }
 
     try:
-        response = requests.post(f'https://itaserver-staging.mobatime.cloud/api/ErrorReporting',
+        response = requests.post(f'{url}/api/ErrorReporting',
                                  json=params,
                                  auth=HTTPBasicAuth(username, password))
 
