@@ -3,7 +3,7 @@ import sqlite3
 import threading
 import time
 
-from config import read_config
+from .config import read_config
 
 import requests  # type: ignore
 import datetime

@@ -3,8 +3,8 @@ import threading
 import datetime
 from dataclasses import dataclass
 import logging
-from config import read_config
-from save_operations import save_record
+from .config import read_config
+from .save_operations import save_record
 
 config = read_config()
 

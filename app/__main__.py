@@ -2,10 +2,10 @@ import logging
 import queue
 import threading
 
-from event_processor import EventProcessor
-from serial_reader import SerialPortReader, find_serial_ports
+from .event_processor import EventProcessor
+from .serial_reader import SerialPortReader, find_serial_ports
 
-from save_operations import resend_failed_records, compare_api_db_id
+from .save_operations import resend_failed_records, compare_api_db_id
 
 
 def main():
