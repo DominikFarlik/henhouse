@@ -2,7 +2,7 @@ import logging
 
 import click
 import requests
-from main import main
+from .__main__ import main
 from save_operations import get_number_of_unsend_records
 
 
