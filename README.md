@@ -13,35 +13,17 @@
 `pip install -r requirements.txt`
 ### 5. Move into data directory
 `cd data`
-### 6. Create database file and table structure
-#### 6.1 Create:
-`touch henhouse.db`
-#### 6.2 Get into database file:
-`sqlite3 henhouse.db`
-#### 6.3 Paste code below to create table:
-```
-CREATE TABLE events (
-    id INTEGER,
-    chip_id INTEGER NOT NULL,
-    event_time TIMESTAMP,
-    reader_id TEXT NOT NULL,
-    event_type INTEGER NOT NULL,
-    in_api INTEGER NOT NULL DEFAULT 0,
-    api_attempts INTEGER DEFAULT 1
-);
-```
-#### 6.4 Exit from sqlite: `^D`
-### 7. [OPTIONAL] Get api credentials, if you don't have them already
-#### 7.1 Move back to root folder `/henhouse`:
+### 6. [OPTIONAL] Get api credentials, if you don't have them already
+#### 6.1 Move back to root folder `/henhouse`:
 `cd ..`
-#### 7.2 Activate venv:
+#### 6.2 Activate venv:
 `python3 -m app.cli activate`
 #### There you will enter the HWID and activation code and get login credentials for api
 #### rows: `Username` and `Password`
-### 8. Create configuration file
-#### 8.1 Move back to `henhouse/data`:
+### 7. Create configuration file
+#### 7.1 Move back to `henhouse/data`:
 `cd data`
-#### 8.2 Create configuration file:
+#### 7.2 Create configuration file:
 `nano config.ini`
 #### Example configuration:
 ```
@@ -69,10 +51,10 @@ file_path = ./data/henhouse.db
 |    **file_path**    | Path to database file <./path/from/root/dir.db>. Default:                                                                                      |
 #### Save and exit: `^S ^X`
 
-### 9. Run program
-#### Return to root dir `/henhouse`:
+### 8. Run program
+#### 8.1 Return to root dir `/henhouse`:
 `cd ..`
-#### Start the app:
+#### 8.2 Start the app:
 `python3 -m app`
 #### or
 `python3 -m app.cli run`
