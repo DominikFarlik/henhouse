@@ -1,29 +1,24 @@
 # Henhouse
 
-### 1. Clone git repository
+### Clone git repository
 `git clone git@github.com:DominikFarlik/henhouse.git`
-### 2. Move into project directory
+### Move into project directory
 `cd henhouse`
-### 3. Create and activate virtual env
-#### 3.1 Create:
+### Create and activate virtual env
+#### Create:
 `python3 -m venv venv`
-#### 3.2 Activate:
+#### Activate:
 `source venv/bin/activate`
-### 4. Install requirements
+### Install requirements
 `pip install -r requirements.txt`
-### 5. Move into data directory
-`cd data`
-### 6. [OPTIONAL] Get api credentials, if you don't have them already
-#### 6.1 Move back to root folder `/henhouse`:
-`cd ..`
-#### 6.2 Activate venv:
+### [OPTIONAL] Get api credentials, if you don't have them already
 `python3 -m app.cli activate`
 #### There you will enter the HWID and activation code and get login credentials for api
 #### rows: `Username` and `Password`
-### 7. Create configuration file
-#### 7.1 Move back to `henhouse/data`:
+### Create configuration file
+#### Move back to `henhouse/data`:
 `cd data`
-#### 7.2 Create configuration file:
+#### Create configuration file:
 `nano config.ini`
 #### Example configuration:
 ```
@@ -51,10 +46,10 @@ file_path = ./data/henhouse.db
 |    **file_path**    | Path to database file <./path/from/root/dir.db>. Default:                                                                                      |
 #### Save and exit: `^S ^X`
 
-### 8. Run program
-#### 8.1 Return to root dir `/henhouse`:
+### Run program
+#### Return to root dir `/henhouse`:
 `cd ..`
-#### 8.2 Start the app:
+#### Start the app:
 `python3 -m app`
 #### or
 `python3 -m app.cli run`
