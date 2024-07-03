@@ -51,6 +51,6 @@ file_path = ./data/henhouse.db
 
 ## Using CLI
 ### Can be used to run the app, get number of unsent records to api, ...
-#### Use: `python3 -m app.cli --help` in `/henhouse` directory
+#### Use: `python3 -m app.cli --help`
 
 
