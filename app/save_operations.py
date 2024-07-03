@@ -47,6 +47,8 @@ def compare_api_db_id():
 
     if get_starting_id_from_api() == last_db_id:
         logging.info("Last api and db ids are matching.")
+    else:
+        logging.warning("Last api and db ids are not matching!")
 
 
 def resend_failed_records():
