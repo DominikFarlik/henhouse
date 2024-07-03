@@ -11,10 +11,7 @@
 `source venv/bin/activate`
 ### 4. Install requirements
 `pip install -r requirements.txt`
-### 5. Create and move into data directory
-#### 5.1 Create:
-`mkdir data`
-#### 5.2 Move:
+### 5. Move into data directory
 `cd data`
 ### 6. Create database file and table structure
 #### 6.1 Create:
