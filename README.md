@@ -16,10 +16,8 @@
 #### There you will enter the HWID and activation code and get login credentials for api
 #### rows: `Username` and `Password`
 ### Create configuration file
-#### Move back to `henhouse/data`:
-`cd data`
 #### Create configuration file:
-`nano config.ini`
+`nano data/config.ini`
 #### Example configuration:
 ```
 [API]
@@ -47,9 +45,6 @@ file_path = ./data/henhouse.db
 #### Save and exit: `^S ^X`
 
 ### Run program
-#### Return to root dir `/henhouse`:
-`cd ..`
-#### Start the app:
 `python3 -m app`
 #### or
 `python3 -m app.cli run`
