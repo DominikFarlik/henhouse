@@ -1,7 +1,7 @@
 import logging
 
 import click
-import requests
+import requests  # type: ignore
 from .__main__ import main
 from .save_operations import get_number_of_unsent_records
 

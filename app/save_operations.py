@@ -24,7 +24,7 @@ time_zone_offset = config.getint('API', 'timezone_offset')
 url = config.get('API', 'url')
 
 
-def save_record(chip_id: int, reader_id: str, event_time: datetime, event_type: int) -> None:
+def save_record(chip_id: int, reader_id: str, event_time: str, event_type: int) -> None:
     """Saves record to database, then try to send to api and check if it was successful"""
     record_id = write_event_to_db(chip_id, reader_id, event_time, event_type)
     in_api = create_api_record(record_id, event_time, chip_id, event_type, reader_id)
@@ -90,20 +90,14 @@ def write_event_to_db(chip_id: int, reader_id: str, event_time: str, event_type:
     """Writes received data to the database."""
     lock = threading.Lock()
     with lock:
-        try:
-            with sqlite3.connect(DB_PATH) as connection:
-                cursor = connection.cursor()
-                cursor.execute(
-                    "INSERT INTO events (chip_id, reader_id, event_type, event_time) VALUES (?, ?, ?, ?)",
-                    (chip_id, reader_id, event_type, event_time),
-                )
-                connection.commit()
-                return cursor.lastrowid
-
-        except sqlite3.Error as e:
-            logging.error(f"Database error: {e}")
-        except Exception as e:
-            logging.error(f"Unexpected error: {e}")
+        with sqlite3.connect(DB_PATH) as connection:
+            cursor = connection.cursor()
+            cursor.execute(
+                "INSERT INTO events (chip_id, reader_id, event_type, event_time) VALUES (?, ?, ?, ?)",
+                (chip_id, reader_id, event_type, event_time),
+            )
+            connection.commit()
+            return cursor.lastrowid
 
 
 def get_number_of_unsent_records():
