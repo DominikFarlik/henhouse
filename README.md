@@ -27,8 +27,15 @@ CREATE TABLE events (
 );
 ```
 #### Exit from sqlite: `^D`
-### 7. Create configuration file
+### 7. Get api credentials, if dont have them already
+#### Move back to root folder (/henhouse)
+#### `cd ..`
+#### `python3 -m app.cli activate`
+#### There u enter HWID and activation code and get login credentials for api
+#### (row `Username` and `Password`)
+### 8. Create configuration file
 #### `nano config.ini`
+#### Example configuration:
 ```
 [API]
 username = <Terminal username for api>

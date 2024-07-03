@@ -20,7 +20,7 @@ def run():
         print("Program interrupted and stopped.")
 
 
-@click.command(help='By received HWID and activation key returns login credentials for api.')
+@click.command(help='Receive HWID and activation key, returns login credentials for api.')
 @click.option('--hw_id', prompt='HWID', help='MAC address of the device.')
 @click.option('--activation_code', prompt='Activation code', help='Activation code for hardware terminal.')
 def activate(hw_id, activation_code):
