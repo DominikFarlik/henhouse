@@ -44,11 +44,13 @@ def compare_api_db_id():
     last_db_id = cursor.fetchone()
     last_db_id = last_db_id[0]
     conn.close()
+    starting_api_id = get_starting_id_from_api()
 
-    if get_starting_id_from_api() == last_db_id:
+    if starting_api_id == last_db_id:
         logging.info("Last api and db ids are matching.")
     else:
         logging.warning("Last api and db ids are not matching!")
+        sync_db_with_api(starting_api_id)
 
 
 def resend_failed_records():
@@ -104,7 +106,7 @@ def write_event_to_db(chip_id: int, reader_id: str, event_time: str, event_type:
             logging.error(f"Unexpected error: {e}")
 
 
-def get_number_of_unsend_records():
+def get_number_of_unsent_records():
     """Returns the number of unsent records in the database."""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -123,6 +125,33 @@ def fetch_failed_api_records():
     records = cursor.fetchall()
     conn.close()
     return records
+
+
+def database_initialization():
+    connection = sqlite3.connect(DB_PATH)
+    cursor = connection.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS events (
+            id INTEGER,
+            chip_id INTEGER NOT NULL,
+            event_time TIMESTAMP,
+            reader_id TEXT NOT NULL,
+            event_type INTEGER NOT NULL,
+            in_api INTEGER NOT NULL DEFAULT 0,
+            api_attempts INTEGER DEFAULT 1)
+            """)
+    connection.close()
+
+
+def sync_db_with_api(starting_id: int) -> None:
+    connection = sqlite3.connect(DB_PATH)
+    cursor = connection.cursor()
+    cursor.execute(
+        "INSERT INTO events (id, chip_id, reader_id, event_type, in_api) VALUES (?, ?, ?, ?, ?)",
+        (starting_id, 0, "None", 0, 1),
+    )
+    connection.commit()
+    connection.close()
 
 
 # api operations
