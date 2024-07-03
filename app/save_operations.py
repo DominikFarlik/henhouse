@@ -132,7 +132,7 @@ def database_initialization():
     cursor = connection.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS events (
-            id INTEGER AUTOINCREMENT,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
             chip_id INTEGER NOT NULL,
             event_time TIMESTAMP,
             reader_id TEXT NOT NULL,
