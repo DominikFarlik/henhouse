@@ -35,6 +35,18 @@ leave_time = 10
 
 [DB]
 file_path = ./data/henhouse.db
+
+[Readers]
+/dev/ttyUSB0 = 0
+/dev/ttyUSB1 = 1
+/dev/ttyUSB2 = 2
+/dev/ttyUSB3 = 3
+/dev/ttyUSB4 = 4
+/dev/ttyUSB5 = 5
+/dev/ttyUSB6 = 6
+/dev/ttyUSB7 = 7
+/dev/ttyUSB8 = 8
+/dev/ttyUSB9 = 9
 ```
 |      **Value**      | Description                                                                                                                                    |
 |:-------------------:|------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -46,6 +58,7 @@ file_path = ./data/henhouse.db
 |    **lay_time**     | Duration of time(in seconds) to determine whether egg was laid.                                                                                |
 |   **leave_time**    | Duration of time(in seconds) to determine whether chicken has left the reader.                                                                 |
 |    **file_path**    | Path to database file <./path/from/root/dir.db>. Default:                                                                                      |
+|    **[Readers]**    | Mapping reader ports and names                                                                                                                 |
 #### Save and exit: `^S ^X`
 
 ### Run program
