@@ -1,3 +1,4 @@
+import configparser
 import logging
 
 import click
@@ -50,10 +51,21 @@ def unsent_records():
     logging.info(f"Number of unsent records to api {get_number_of_unsent_records()}")
 
 
+@click.command(help='Change location of config file.')
+@click.option('--path', prompt='path', help='./path/to/config')
+def change_config_path(path):
+    config = configparser.ConfigParser()
+    config['Path'] = {'config': path}
+    with open('./config_path.ini', 'w') as configfile:
+        config.write(configfile)
+    logging.info(f"Path changed to {path}")
+
+
 # Add commands to the manage group
 manage.add_command(run)
 manage.add_command(activate)
 manage.add_command(unsent_records)
+manage.add_command(change_config_path)
 
 if __name__ == '__main__':
     manage()
