@@ -44,7 +44,9 @@ def compare_api_db_id():
     conn.close()
     starting_api_id = get_starting_id_from_api()
 
-    if starting_api_id == last_db_id:
+    if starting_api_id == -1:
+        logging.warning("Could not check if ids are synchronized!")
+    elif starting_api_id == last_db_id:
         logging.info("Last api and db ids are matching.")
     elif starting_api_id < last_db_id:
         pass  # it could only be caused by failed previous request
@@ -198,7 +200,7 @@ def get_starting_id_from_api() -> int:
         return data['LastTimeAttendanceRecordId']
     except requests.RequestException as e:
         logging.error(f"Failed to get last ID from API: {e}")
-        raise
+        return -1
 
 
 def make_record_sent(record_id: int) -> None:
