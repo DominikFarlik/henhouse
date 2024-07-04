@@ -66,6 +66,42 @@ file_path = ./data/henhouse.db
 #### or
 `python3 -m app.cli run`
 
+## Linux service for app
+### Allow user services:
+`loginctl enable-linger pi`
+### Create directory:
+`mkdir -p /home/pi/.config/systemd/user`
+### Create file:
+`nano /home/pi/.config/systemd/user/henhouse.service`
+### and paste:
+```
+[Unit]
+Description=Henhouse Python Service
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/home/pi/henhouse/venv/bin/python -m app
+WorkingDirectory=/home/pi/henhouse
+Environment="PYTHONPATH=/home/pi/henhouse"
+Restart=on-failure
+StandardOutput=append:/home/pi/henhouse/henhouse.log
+StandardError=append:/home/pi/henhouse/henhouse.log
+
+[Install]
+WantedBy=default.target
+```
+### Load new service:
+`systemctl --user daemon-reload`
+### Start service:
+`systemctl --user start henhouse`
+### Enable to start service after system boot:
+`systemctl --user enable henhouse`
+### If u want to stop service:
+`systemctl --user stop henhouse`
+### Or restart:
+`systemctl --user restart henhouse`
+
 ## Using CLI
 ### Can be used to run the app, get number of unsent records to api, ...
 #### Use: `python3 -m app.cli --help`
