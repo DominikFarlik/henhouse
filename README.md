@@ -25,6 +25,8 @@ username = <Terminal username for api>
 password = <Terminal password for api>
 timezone_offset = 120
 url = https://itaserver-staging.mobatime.cloud
+resend_timer = 1800
+fail_limit = 10
 
 [Constants]
 lay_counter = 35
@@ -38,6 +40,8 @@ file_path = ./data/henhouse.db
 |:-------------------:|------------------------------------------------------------------------------------------------------------------------------------------------|
 | **timezone_offset** | Difference between UTC and Local time of the terminal in minutes. E.g local time in CEST is 120.                                               |
 |       **url**       | Url of api server.                                                                                                                             |
+|  **resend_timer**   | Delay(in seconds) between resending failed requests to api.                                                                                    |
+|   **fail_limit**    | Number of attempts to resend failed request until it is sent to error endpoint.                                                                |
 |   **lay_counter**   | Number of chip reads to determine whether egg was laid. Recommend number slightly over half of lay time. (Chip is read ± 1.5 times per second) |
 |    **lay_time**     | Duration of time(in seconds) to determine whether egg was laid.                                                                                |
 |   **leave_time**    | Duration of time(in seconds) to determine whether chicken has left the reader.                                                                 |

@@ -13,15 +13,13 @@ config = read_config()
 
 DB_PATH = config.get('DB', 'file_path')
 
-RESEND_TIMER = 1800
-
-FAIL_LIMIT = 10
-
 # api constants
 username = config.get('API', 'username')
 password = config.get('API', 'password')
 time_zone_offset = config.getint('API', 'timezone_offset')
 url = config.get('API', 'url')
+resend_timer = config.getint('API', 'resend_timer')
+fail_limit = config.getint('API', 'fail_limit')
 
 
 def save_record(chip_id: int, reader_id: int, event_time: str, event_type: int) -> None:
@@ -49,10 +47,11 @@ def compare_api_db_id():
     if starting_api_id == last_db_id:
         logging.info("Last api and db ids are matching.")
     elif starting_api_id < last_db_id:
-        pass  # there should be check if data with lower ids are in db and just not sent to api
+        pass  # it could only be caused by failed previous request
     else:
-        logging.warning("Last api and db ids are not matching! Synchronizing...")
+        logging.warning("Last api id greater than last db id! Synchronizing...")
         sync_db_with_api(starting_api_id)
+        logging.info("Synchronized")
 
 
 def resend_failed_records():
@@ -67,24 +66,27 @@ def resend_failed_records():
             reader_id = record[3]
             record_type = record[4]
 
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            cursor.execute("UPDATE events SET api_attempts = api_attempts + 1 WHERE id = ?", (record_id,))
+            conn.commit()
+            conn.close()
+
             in_api = create_api_record(record_id, event_time, rfid, record_type, reader_id)
             if in_api == 1:
                 make_record_sent(record_id)
             else:
                 conn = sqlite3.connect(DB_PATH)
                 cursor = conn.cursor()
-                cursor.execute("UPDATE events SET api_attempts = api_attempts + 1 WHERE id = ?", (record_id,))
-                conn.commit()
-
                 cursor.execute("SELECT api_attempts FROM events WHERE id = ?", (record[0],))
                 api_attempts = cursor.fetchone()[0]
                 conn.close()
 
-                if api_attempts >= FAIL_LIMIT:
+                if api_attempts >= fail_limit:
                     send_to_error_endpoint(record_id, event_time, rfid, record_type, reader_id)
                     make_record_sent(record_id)
 
-        time.sleep(RESEND_TIMER)
+        time.sleep(resend_timer)
 
 
 # db operations
