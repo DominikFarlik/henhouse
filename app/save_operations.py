@@ -24,7 +24,7 @@ time_zone_offset = config.getint('API', 'timezone_offset')
 url = config.get('API', 'url')
 
 
-def save_record(chip_id: int, reader_id: str, event_time: str, event_type: int) -> None:
+def save_record(chip_id: int, reader_id: int, event_time: str, event_type: int) -> None:
     """Saves record to database, then try to send to api and check if it was successful"""
     record_id = write_event_to_db(chip_id, reader_id, event_time, event_type)
     in_api = create_api_record(record_id, event_time, chip_id, event_type, reader_id)
@@ -48,8 +48,10 @@ def compare_api_db_id():
 
     if starting_api_id == last_db_id:
         logging.info("Last api and db ids are matching.")
+    elif starting_api_id < last_db_id:
+        pass  # there should be check if data with lower ids are in db and just not sent to api
     else:
-        logging.warning("Last api and db ids are not matching!")
+        logging.warning("Last api and db ids are not matching! Synchronizing...")
         sync_db_with_api(starting_api_id)
 
 
@@ -86,7 +88,7 @@ def resend_failed_records():
 
 
 # db operations
-def write_event_to_db(chip_id: int, reader_id: str, event_time: str, event_type: int) -> int:
+def write_event_to_db(chip_id: int, reader_id: int, event_time: str, event_type: int) -> int:
     """Writes received data to the database."""
     lock = threading.Lock()
     with lock:
@@ -149,7 +151,7 @@ def sync_db_with_api(starting_id: int) -> None:
 
 
 # api operations
-def create_api_record(record_id: int, event_time: str, rfid: int, record_type: int, reader_id: str) -> int:
+def create_api_record(record_id: int, event_time: str, rfid: int, record_type: int, reader_id: int) -> int:
     """Sending new time attendance record to api"""
     params = {
         "TerminalTime": event_time,
@@ -161,7 +163,7 @@ def create_api_record(record_id: int, event_time: str, rfid: int, record_type: i
                 "RecordType": record_type,
                 "RFID": rfid,
                 "Punched": datetime.datetime.now().isoformat(),
-                "HWSource": reader_id[-1]
+                "HWSource": reader_id
             }
         ]
     }

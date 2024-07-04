@@ -16,7 +16,7 @@ LEAVE_TIME = config.getint('Constants', 'leave_time')
 @dataclass
 class Chicken:
     chip_id: int
-    reader_id: str
+    reader_id: int
     counter: int
     enter_time: datetime.datetime
     last_read: datetime.datetime
@@ -49,7 +49,7 @@ class EventProcessor:
             except Exception as e:
                 logging.error(f"Unexpected error in event processor: {e}")
 
-    def process_new_chip_id(self, new_id: int, reader_id: str) -> None:
+    def process_new_chip_id(self, new_id: int, reader_id: int) -> None:
         """Process the new ID and update counters and states."""
         found_chicken = self.check_for_egg(new_id, reader_id)
         if not found_chicken:
@@ -58,7 +58,7 @@ class EventProcessor:
             logging.info(f"Chicken {chicken.chip_id} entered on {chicken.reader_id}.")
             save_record(chicken.chip_id, chicken.reader_id, datetime.datetime.now().isoformat(), 0)
 
-    def check_for_egg(self, new_id, reader_id: str) -> bool:
+    def check_for_egg(self, new_id, reader_id: int) -> bool:
         """Checking if chicken is constantly standing long enough on reader"""
         for chicken in self.chickens:
             if chicken.chip_id == new_id:

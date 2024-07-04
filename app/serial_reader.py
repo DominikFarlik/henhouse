@@ -3,6 +3,9 @@ import queue
 import threading
 import serial  # type: ignore
 import serial.tools.list_ports  # type: ignore
+from .config import read_config
+
+config = read_config()
 
 
 class SerialPortReader:
@@ -15,7 +18,7 @@ class SerialPortReader:
             stopbits=serial.STOPBITS_ONE,
             timeout=5,
         )
-        self.reader_id = f"Reader_{port_name}"
+        self.reader_id: int = config.getint('Readers', port_name)
         self.event_queue = event_queue
         self.running = True
         self.thread = threading.Thread(target=self.run, daemon=True)
