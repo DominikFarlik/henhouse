@@ -48,12 +48,12 @@ def compare_api_db_id():
         logging.warning("Could not check if ids are synchronized!")
     elif starting_api_id == last_db_id:
         logging.info("Last api and db ids are matching.")
-    elif starting_api_id < last_db_id:
-        pass  # it could only be caused by failed previous request
-    else:
-        logging.warning("Last api id greater than last db id! Synchronizing...")
+    elif last_db_id is None or last_db_id < starting_api_id:
+        logging.warning("Last api id greater than last db id or db is empty! Synchronizing...")
         sync_db_with_api(starting_api_id)
         logging.info("Synchronized")
+    elif starting_api_id < last_db_id:
+        pass  # it could only be caused by failed previous request
 
 
 def resend_failed_records():
