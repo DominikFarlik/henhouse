@@ -56,9 +56,9 @@ def compare_api_db_id():
         pass  # it could only be caused by failed previous request
 
 
-def resend_failed_records():
+def resend_failed_records(stop_event):
     """Repeatedly sends failed records to api till its successful or FAIL_LIMIT"""
-    while True:
+    while stop_event.is_set():
         records_to_resend = fetch_failed_api_records()
 
         for record in records_to_resend:

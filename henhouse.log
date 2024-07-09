@@ -1,0 +1,5 @@
+2024-07-09 11:48:44,965 - INFO - Available serial ports: []
+2024-07-09 11:48:44,969 - DEBUG - Starting new HTTPS connection (1): itaserver-staging.mobatime.cloud:443
+2024-07-09 11:48:45,284 - DEBUG - https://itaserver-staging.mobatime.cloud:443 "GET /api/TimeAttendanceRecordId HTTP/11" 200 33
+2024-07-09 11:48:45,285 - INFO - Retrieved last record ID from api: 58
+2024-07-09 11:48:45,286 - INFO - Last api and db ids are matching.

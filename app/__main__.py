@@ -29,7 +29,8 @@ def main():
         for port_name in serial_port_names
     ]
 
-    api_resend_thread = threading.Thread(target=resend_failed_records)
+    stop_event = threading.Event()
+    api_resend_thread = threading.Thread(target=resend_failed_records, args=(stop_event,))
 
     # if database is not in project, is added
     database_initialization()
@@ -60,6 +61,7 @@ def main():
         logging.info("Shutting down...")
 
     finally:
+        stop_event.set()
         for reader in serial_port_readers:
             reader.close()
         event_processor.stop()
