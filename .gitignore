@@ -6,3 +6,4 @@ app/__pycache__
 config.ini
 data/henhouse.db
 data/config.ini
+*.log
