@@ -106,6 +106,7 @@ def write_event_to_db(chip_id: int, reader_id: int, event_time: str, event_type:
 
 def get_number_of_unsent_records() -> int:
     """Returns the number of unsent records in the database."""
+    database_initialization()
     with con:
         cursor = con.cursor()
         cursor.execute("SELECT count(*) FROM events WHERE in_api = 0")
@@ -147,7 +148,6 @@ def sync_db_with_api(starting_id: int) -> None:
                 (starting_id, 0, "None", 0, 1),
             )
             con.commit()
-            con.close()
 
 
 # api operations
