@@ -12,6 +12,8 @@ from requests.auth import HTTPBasicAuth  # type: ignore
 config = read_config()
 
 DB_PATH = config.get('DB', 'file_path')
+lock = threading.Lock()
+con = sqlite3.connect(DB_PATH, check_same_thread=False)
 
 # api constants
 username = config.get('API', 'username')
@@ -27,22 +29,20 @@ def save_record(chip_id: int, reader_id: int, event_time: str, event_type: int) 
     record_id = write_event_to_db(chip_id, reader_id, event_time, event_type)
     in_api = create_api_record(record_id, event_time, chip_id, event_type, reader_id)
     if in_api == 1:
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute("UPDATE events SET in_api = 1 WHERE id = ?", (record_id,))
-        conn.commit()
-        conn.close()
+        with con:
+            cursor = con.cursor()
+            cursor.execute("UPDATE events SET in_api = 1 WHERE id = ?", (record_id,))
+            con.commit()
 
 
 def compare_api_db_id() -> None:
     """Debug function to check if last id in database is equal to last id in api"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("SELECT MAX(id) FROM events")
-    last_db_id = cursor.fetchone()
-    last_db_id = last_db_id[0]
-    conn.close()
-    starting_api_id = get_starting_id_from_api()
+    with con:
+        cursor = con.cursor()
+        cursor.execute("SELECT MAX(id) FROM events")
+        last_db_id = cursor.fetchone()
+        last_db_id = last_db_id[0]
+        starting_api_id = get_starting_id_from_api()
 
     if starting_api_id == -1:
         logging.warning("Could not check if ids are synchronized!")
@@ -68,21 +68,20 @@ def resend_failed_records(stop_event) -> None:
             reader_id = record[3]
             record_type = record[4]
 
-            conn = sqlite3.connect(DB_PATH)
-            cursor = conn.cursor()
-            cursor.execute("UPDATE events SET api_attempts = api_attempts + 1 WHERE id = ?", (record_id,))
-            conn.commit()
-            conn.close()
+            with lock:
+                with con:
+                    cursor = con.cursor()
+                    cursor.execute("UPDATE events SET api_attempts = api_attempts + 1 WHERE id = ?", (record_id,))
+                    con.commit()
 
             in_api = create_api_record(record_id, event_time, rfid, record_type, reader_id)
             if in_api == 1:
                 make_record_sent(record_id)
             else:
-                conn = sqlite3.connect(DB_PATH)
-                cursor = conn.cursor()
-                cursor.execute("SELECT api_attempts FROM events WHERE id = ?", (record[0],))
-                api_attempts = cursor.fetchone()[0]
-                conn.close()
+                with con:
+                    cursor = con.cursor()
+                    cursor.execute("SELECT api_attempts FROM events WHERE id = ?", (record[0],))
+                    api_attempts = cursor.fetchone()[0]
 
                 if api_attempts >= fail_limit:
                     send_to_error_endpoint(record_id, event_time, rfid, record_type, reader_id)
@@ -94,64 +93,61 @@ def resend_failed_records(stop_event) -> None:
 # db operations
 def write_event_to_db(chip_id: int, reader_id: int, event_time: str, event_type: int) -> int:
     """Writes received data to the database."""
-    lock = threading.Lock()
     with lock:
-        with sqlite3.connect(DB_PATH) as connection:
-            cursor = connection.cursor()
+        with con:
+            cursor = con.cursor()
             cursor.execute(
                 "INSERT INTO events (chip_id, reader_id, event_type, event_time) VALUES (?, ?, ?, ?)",
                 (chip_id, reader_id, event_type, event_time),
             )
-            connection.commit()
+            con.commit()
             return cursor.lastrowid
 
 
 def get_number_of_unsent_records() -> int:
     """Returns the number of unsent records in the database."""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("SELECT count(*) FROM events WHERE in_api = 0")
-    data = cursor.fetchone()
-    number_of_unsent_records = data[0]
-    conn.close()
+    with con:
+        cursor = con.cursor()
+        cursor.execute("SELECT count(*) FROM events WHERE in_api = 0")
+        data = cursor.fetchone()
+        number_of_unsent_records = data[0]
     return number_of_unsent_records
 
 
 def fetch_failed_api_records() -> list:
     """Returns the list of 5 failed records"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM events WHERE in_api = 0 LIMIT 5")
-    records = cursor.fetchall()
-    conn.close()
+    with con:
+        cursor = con.cursor()
+        cursor.execute("SELECT * FROM events WHERE in_api = 0 LIMIT 5")
+        records = cursor.fetchall()
     return records
 
 
 def database_initialization() -> None:
-    connection = sqlite3.connect(DB_PATH)
-    cursor = connection.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS events (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            chip_id INTEGER NOT NULL,
-            event_time TIMESTAMP,
-            reader_id TEXT NOT NULL,
-            event_type INTEGER NOT NULL,
-            in_api INTEGER NOT NULL DEFAULT 0,
-            api_attempts INTEGER DEFAULT 1)
-            """)
-    connection.close()
+    with con:
+        cursor = con.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                chip_id INTEGER NOT NULL,
+                event_time TIMESTAMP,
+                reader_id TEXT NOT NULL,
+                event_type INTEGER NOT NULL,
+                in_api INTEGER NOT NULL DEFAULT 0,
+                api_attempts INTEGER DEFAULT 1)
+                """)
 
 
 def sync_db_with_api(starting_id: int) -> None:
-    connection = sqlite3.connect(DB_PATH)
-    cursor = connection.cursor()
-    cursor.execute(
-        "INSERT INTO events (id, chip_id, reader_id, event_type, in_api) VALUES (?, ?, ?, ?, ?)",
-        (starting_id, 0, "None", 0, 1),
-    )
-    connection.commit()
-    connection.close()
+    with lock:
+        with con:
+            cursor = con.cursor()
+            cursor.execute(
+                "INSERT INTO events (id, chip_id, reader_id, event_type, in_api) VALUES (?, ?, ?, ?, ?)",
+                (starting_id, 0, "None", 0, 1),
+            )
+            con.commit()
+            con.close()
 
 
 # api operations
@@ -205,11 +201,11 @@ def get_starting_id_from_api() -> int:
 
 def make_record_sent(record_id: int) -> None:
     """Update in_api var in db to 1(successful)"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("UPDATE events SET in_api = 1 WHERE id = ?", (record_id,))
-    conn.commit()
-    conn.close()
+    with lock:
+        with con:
+            cursor = con.cursor()
+            cursor.execute("UPDATE events SET in_api = 1 WHERE id = ?", (record_id,))
+            con.commit()
 
 
 def send_to_error_endpoint(record_id: int, event_time: str, rfid: int, record_type: int, reader_id: str) -> None:

@@ -5,7 +5,7 @@ import threading
 from .event_processor import EventProcessor
 from .serial_reader import SerialPortReader, find_serial_ports
 
-from .save_operations import resend_failed_records, compare_api_db_id, database_initialization
+from .save_operations import resend_failed_records, compare_api_db_id, database_initialization, con
 
 
 def main() -> None:
@@ -65,6 +65,7 @@ def main() -> None:
         for reader in serial_port_readers:
             reader.close()
         event_processor.stop()
+        con.close()
         logging.info("Serial ports closed")
 
 
