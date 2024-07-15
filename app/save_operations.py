@@ -34,7 +34,7 @@ def save_record(chip_id: int, reader_id: int, event_time: str, event_type: int) 
         conn.close()
 
 
-def compare_api_db_id():
+def compare_api_db_id() -> None:
     """Debug function to check if last id in database is equal to last id in api"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -56,7 +56,7 @@ def compare_api_db_id():
         pass  # it could only be caused by failed previous request
 
 
-def resend_failed_records(stop_event):
+def resend_failed_records(stop_event) -> None:
     """Repeatedly sends failed records to api till its successful or FAIL_LIMIT"""
     while stop_event.is_set():
         records_to_resend = fetch_failed_api_records()
@@ -106,7 +106,7 @@ def write_event_to_db(chip_id: int, reader_id: int, event_time: str, event_type:
             return cursor.lastrowid
 
 
-def get_number_of_unsent_records():
+def get_number_of_unsent_records() -> int:
     """Returns the number of unsent records in the database."""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -117,7 +117,7 @@ def get_number_of_unsent_records():
     return number_of_unsent_records
 
 
-def fetch_failed_api_records():
+def fetch_failed_api_records() -> list:
     """Returns the list of 5 failed records"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -127,7 +127,7 @@ def fetch_failed_api_records():
     return records
 
 
-def database_initialization():
+def database_initialization() -> None:
     connection = sqlite3.connect(DB_PATH)
     cursor = connection.cursor()
     cursor.execute("""
@@ -212,7 +212,7 @@ def make_record_sent(record_id: int) -> None:
     conn.close()
 
 
-def send_to_error_endpoint(record_id: int, event_time: str, rfid: int, record_type: int, reader_id: str):
+def send_to_error_endpoint(record_id: int, event_time: str, rfid: int, record_type: int, reader_id: str) -> None:
     """After many failed sent records, send them to error endpoint."""
     params = {
         "TerminalTime": event_time,

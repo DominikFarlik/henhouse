@@ -23,7 +23,7 @@ class SerialPortReader:
         self.running = True
         self.thread = threading.Thread(target=self.run, daemon=True)
 
-    def start(self):
+    def start(self) -> None:
         self.thread.start()
 
     def run(self) -> None:
@@ -43,7 +43,7 @@ class SerialPortReader:
                 logging.error(f"Unexpected exception on {self.reader_id}: {e}")
                 break
 
-    def close(self):
+    def close(self) -> None:
         self.running = False
         if self.serial_port.is_open:
             self.serial_port.close()

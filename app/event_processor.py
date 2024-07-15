@@ -29,10 +29,10 @@ class EventProcessor:
         self.running = True
         self.thread = threading.Thread(target=self.run, daemon=True)
 
-    def start(self):
+    def start(self) -> None:
         self.thread.start()
 
-    def run(self):
+    def run(self) -> None:
         """Thread function to process events from the queue."""
         while self.running:
             try:
@@ -87,7 +87,7 @@ class EventProcessor:
 
                 self.chickens.pop(self.chickens.index(chicken))
 
-    def stop(self):
+    def stop(self) -> None:
         self.running = False
 
 

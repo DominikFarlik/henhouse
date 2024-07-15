@@ -1,7 +1,7 @@
 import configparser
 
 
-def read_config(filename='./config_path.ini'):
+def read_config(filename='./config_path.ini') -> configparser.ConfigParser:
     """Reads the configuration"""
     config = configparser.ConfigParser()
     config.read(filename)

@@ -8,7 +8,7 @@ from .serial_reader import SerialPortReader, find_serial_ports
 from .save_operations import resend_failed_records, compare_api_db_id, database_initialization
 
 
-def main():
+def main() -> None:
     # Logging configuration
     logging.basicConfig(
         level=logging.DEBUG,
