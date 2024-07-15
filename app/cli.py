@@ -36,14 +36,18 @@ def activate(hw_id, activation_code):
 
         data = response.json()
 
-        print(f"Id: {data['Id']}\n"
-              f"Username: {data['Username']}\n"
-              f"Password: {data['Password']}\n"
-              f"CustomerName: {data['CustomerName']}\n"
-              f"CustomerId: {data['CustomerId']}")
+        if response.status_code == 200:
+            print(f"Id: {data['Id']}\n"
+                  f"Username: {data['Username']}\n"
+                  f"Password: {data['Password']}\n"
+                  f"CustomerName: {data['CustomerName']}\n"
+                  f"CustomerId: {data['CustomerId']}")
+        else:
+            logging.error(f"HTTP {response.status_code}: {data.get("Message")}")
 
     except requests.exceptions.RequestException as e:
         logging.error(f"Failed to fetch API credentials: {e}")
+        raise RuntimeError(f"Failed to fetch API credentials: {e}")
 
 
 @click.command(help='Number of records that are not sent to api yet.')
