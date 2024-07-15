@@ -75,7 +75,7 @@ def resend_failed_records(stop_event) -> None:
                     con.commit()
 
             in_api = create_api_record(record_id, event_time, rfid, record_type, reader_id)
-            if in_api == 1:
+            if in_api:
                 make_record_sent(record_id)
             else:
                 with con:
@@ -151,7 +151,7 @@ def sync_db_with_api(starting_id: int) -> None:
 
 
 # api operations
-def create_api_record(record_id: int, event_time: str, rfid: int, record_type: int, reader_id: int) -> int:
+def create_api_record(record_id: int, event_time: str, rfid: int, record_type: int, reader_id: int) -> bool:
     """Sending new time attendance record to api"""
     params = {
         "TerminalTime": event_time,
@@ -174,15 +174,15 @@ def create_api_record(record_id: int, event_time: str, rfid: int, record_type: i
                                  auth=HTTPBasicAuth(username, password))
         response.raise_for_status()  # Ensure we raise an error for bad responses
         logging.info(f"Successfully created API record with ID: {record_id}")
-        return 1
+        return True
 
     except requests.exceptions.RequestException as e:
         logging.error(f"Failed to create API record: {e}")
         if "Terminal_TimeOfTheTerminalIsNotSetCorrectly" in str(e) or "Records_RecordAlreadyExists" in str(e):
             logging.info(f"Handled error: {e}. Record ID: {record_id} considered delivered.")
-            return 1
+            return True
         else:
-            return 0
+            return False
 
 
 def get_starting_id_from_api() -> int:
