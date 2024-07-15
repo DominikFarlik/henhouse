@@ -5,9 +5,9 @@ import click
 import configparser
 import requests  # type: ignore
 
+from .config import set_config_path
 from .event_processor import EventProcessor
 from .serial_reader import SerialPortReader, find_serial_ports
-
 from .save_operations import resend_failed_records, compare_api_db_id, database_initialization, con, \
     get_number_of_unsent_records
 
@@ -79,9 +79,11 @@ def cli():
 
 
 @click.command(help='Runs the main program.')
-def run():
+@click.option('--config', help='./path/to/config')
+def run(config):
     """Run the main program."""
     try:
+        set_config_path(config)
         main()
     except KeyboardInterrupt:
         print("Program interrupted and stopped.")
@@ -90,16 +92,6 @@ def run():
 @click.command(help='Number of records that are not sent to api yet.')
 def unsent_records():
     print(f"Number of unsent records to api: {get_number_of_unsent_records()}")
-
-
-@click.command(help='Change location of config file.')
-@click.option('--path', prompt='path', help='./path/to/config')
-def change_config_path(path):
-    config = configparser.ConfigParser()
-    config['Path'] = {'config': path}
-    with open('./config_path.ini', 'w') as configfile:
-        config.write(configfile)
-    logging.info(f"Path changed to {path}")
 
 
 @click.command(help='Receive HWID and activation key, returns login credentials for api.')
@@ -134,8 +126,6 @@ def activate(hw_id, activation_code):
 cli.add_command(run)
 cli.add_command(activate)
 cli.add_command(unsent_records)
-cli.add_command(change_config_path)
-
 
 if __name__ == "__main__":
     cli()
