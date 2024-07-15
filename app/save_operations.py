@@ -14,6 +14,7 @@ config = read_config()
 DB_PATH = config.get('DB', 'file_path')
 lock = threading.Lock()
 con = sqlite3.connect(DB_PATH, check_same_thread=False)
+con.row_factory = sqlite3.Row
 
 # api constants
 username = config.get('API', 'username')
@@ -58,34 +59,27 @@ def compare_api_db_id() -> None:
 
 def resend_failed_records(stop_event) -> None:
     """Repeatedly sends failed records to api till its successful or FAIL_LIMIT"""
-    while stop_event.is_set():
+    while not stop_event.is_set():
         records_to_resend = fetch_failed_api_records()
-
         for record in records_to_resend:
-            record_id = record[0]
-            rfid = record[1]
-            event_time = record[2]
-            reader_id = record[3]
-            record_type = record[4]
-
             with lock:
                 with con:
                     cursor = con.cursor()
-                    cursor.execute("UPDATE events SET api_attempts = api_attempts + 1 WHERE id = ?", (record_id,))
+                    cursor.execute("UPDATE events SET api_attempts = api_attempts + 1 WHERE id = ?", (record['id'],))
                     con.commit()
 
-            in_api = create_api_record(record_id, event_time, rfid, record_type, reader_id)
+            in_api = create_api_record(record['id'], record['event_time'], record['chip_id'], record['event_type'], record['reader_id'])
             if in_api:
-                make_record_sent(record_id)
+                make_record_sent(record['id'])
             else:
                 with con:
                     cursor = con.cursor()
-                    cursor.execute("SELECT api_attempts FROM events WHERE id = ?", (record[0],))
+                    cursor.execute("SELECT api_attempts FROM events WHERE id = ?", (record['id'],))
                     api_attempts = cursor.fetchone()[0]
 
                 if api_attempts >= fail_limit:
-                    send_to_error_endpoint(record_id, event_time, rfid, record_type, reader_id)
-                    make_record_sent(record_id)
+                    send_to_error_endpoint(record['id'], record['event_time'], record['chip_id'], record['event_type'], record['reader_id'])
+                    make_record_sent(record['id'])
 
         time.sleep(resend_timer)
 
