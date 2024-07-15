@@ -56,14 +56,12 @@ file_path = ./data/henhouse.db
 |    **[Readers]**    | Mapping reader ports and names                                                                                                                 |
 #### Save and exit: `^S ^X`
 ### [OPTIONAL] Get api credentials, if you don't have them already
-`python3 -m app.cli activate`
+`python3 -m app activate`
 #### There you will enter the HWID and activation code and get login credentials for api
 #### rows: `Username` and `Password`
 
 ### Run program
-`python3 -m app`
-#### or
-`python3 -m app.cli run`
+`python3 -m app run`
 
 ## Linux service for app
 ### Allow user services:
@@ -103,6 +101,6 @@ WantedBy=default.target
 
 ## Using CLI
 ### Can be used to run the app, get number of unsent records to api, ...
-#### Use: `python3 -m app.cli --help`
+#### Use: `python3 -m app --help`
 
 
