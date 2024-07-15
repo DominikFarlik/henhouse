@@ -28,7 +28,7 @@ def save_record(chip_id: int, reader_id: int, event_time: str, event_type: int) 
     """Saves record to database, then try to send to api and check if it was successful"""
     record_id = write_event_to_db(chip_id, reader_id, event_time, event_type)
     in_api = create_api_record(record_id, event_time, chip_id, event_type, reader_id)
-    if in_api == 1:
+    if in_api:
         with con:
             cursor = con.cursor()
             cursor.execute("UPDATE events SET in_api = 1 WHERE id = ?", (record_id,))
