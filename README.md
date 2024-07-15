@@ -11,12 +11,7 @@
 `source venv/bin/activate`
 ### Install requirements
 `pip install -r requirements.txt`
-### [OPTIONAL] Get api credentials, if you don't have them already
-`python3 -m app.cli activate`
-#### There you will enter the HWID and activation code and get login credentials for api
-#### rows: `Username` and `Password`
 ### Create configuration file
-#### Create configuration file:
 `nano data/config.ini`
 #### Example configuration:
 ```
@@ -60,6 +55,10 @@ file_path = ./data/henhouse.db
 |    **file_path**    | Path to database file <./path/from/root/dir.db>. Default:                                                                                      |
 |    **[Readers]**    | Mapping reader ports and names                                                                                                                 |
 #### Save and exit: `^S ^X`
+### [OPTIONAL] Get api credentials, if you don't have them already
+`python3 -m app.cli activate`
+#### There you will enter the HWID and activation code and get login credentials for api
+#### rows: `Username` and `Password`
 
 ### Run program
 `python3 -m app`
